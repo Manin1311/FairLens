@@ -195,11 +195,16 @@ async def run_demo(dataset_name: str):
     target_col = detect_target_column(df)
     analysis = run_full_analysis(df, sensitive_cols, target_col)
 
+    explanation = ""
+    fixes = []
     try:
         explanation = await gemini_service.explain_bias_findings(analysis, f"{dataset_name} dataset")
         fixes = await gemini_service.generate_fix_suggestions(analysis)
-    except Exception:
-        explanation = "Gemini explanation unavailable in demo mode."
+    except Exception as e:
+        import traceback
+        print(f"[GEMINI ERROR in demo/{dataset_name}]: {e}")
+        traceback.print_exc()
+        explanation = f"AI explanation temporarily unavailable. Bias metrics above are accurate. Error: {str(e)[:120]}"
         fixes = []
 
     return {

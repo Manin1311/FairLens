@@ -1,11 +1,67 @@
+"""
+Gemini API Key Rotator — cycles through multiple keys on 429 rate limit errors.
+Add keys as: GEMINI_API_KEY_1, GEMINI_API_KEY_2, ... in your .env
+"""
 import google.generativeai as genai
 import json
 import os
+import time
+import asyncio
 from dotenv import load_dotenv
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-1.5-pro")
+
+MODEL_NAME = "gemini-2.5-flash"
+
+# ─── Load all API keys ────────────────────────────────────────────────────────
+def _load_keys() -> list[str]:
+    keys = []
+    # Primary key
+    primary = os.getenv("GEMINI_API_KEY", "")
+    if primary and "your_gemini" not in primary:
+        keys.append(primary)
+    # Additional keys: GEMINI_API_KEY_1 through GEMINI_API_KEY_9
+    for i in range(1, 10):
+        k = os.getenv(f"GEMINI_API_KEY_{i}", "")
+        if k and "your_gemini" not in k:
+            keys.append(k)
+    print(f"[FairLens] Loaded {len(keys)} Gemini API key(s)")
+    return keys
+
+_API_KEYS = _load_keys()
+_current_key_idx = 0
+
+def _get_model() -> genai.GenerativeModel:
+    global _current_key_idx
+    if not _API_KEYS:
+        raise RuntimeError("No Gemini API keys configured in .env")
+    key = _API_KEYS[_current_key_idx % len(_API_KEYS)]
+    genai.configure(api_key=key)
+    return genai.GenerativeModel(MODEL_NAME)
+
+def _rotate_key():
+    global _current_key_idx
+    _current_key_idx = (_current_key_idx + 1) % max(len(_API_KEYS), 1)
+
+def _generate_with_retry(prompt: str, max_retries: int = 3) -> str:
+    """Call Gemini with automatic key rotation on rate limit or auth errors."""
+    last_error = None
+    attempts = max_retries * max(len(_API_KEYS), 1)
+    for _ in range(attempts):
+        try:
+            model = _get_model()
+            response = model.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            err_str = str(e)
+            # Rotate on quota, auth, or permission errors
+            if any(x in err_str for x in ["429", "403", "quota", "PERMISSION", "API_KEY", "ResourceExhausted", "PermissionDenied"]):
+                _rotate_key()
+                last_error = e
+                time.sleep(0.5)
+                continue
+            raise e  # Re-raise content/model errors immediately
+    raise Exception(f"All {len(_API_KEYS)} Gemini API keys exhausted. Last error: {last_error}")
 
 
 def _clean_json(text: str) -> str:
@@ -17,6 +73,8 @@ def _clean_json(text: str) -> str:
         text = text.split("```")[1].split("```")[0].strip()
     return text
 
+
+# ─── AI Functions ─────────────────────────────────────────────────────────────
 
 async def explain_bias_findings(analysis_results: dict, dataset_context: str = "") -> str:
     """Generate a plain-English explanation of bias findings."""
@@ -38,8 +96,8 @@ Write a clear, impactful explanation (300-400 words) that:
 Use plain, powerful language. Make it feel real — these are decisions about people's lives.
 Do NOT use bullet points — write in flowing paragraphs.
 """
-    response = model.generate_content(prompt)
-    return response.text
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _generate_with_retry, prompt)
 
 
 async def generate_fix_suggestions(analysis_results: dict) -> list:
@@ -56,7 +114,7 @@ Generate exactly 5 specific, actionable fix suggestions in this JSON format:
     "title": "Short action title",
     "priority": "HIGH",
     "description": "Specific steps to implement this fix",
-    "expected_impact": "Quantified improvement expected (e.g., 'Reduces DPD from 0.31 to ~0.08')",
+    "expected_impact": "Quantified improvement expected",
     "effort": "LOW"
   }}
 ]
@@ -65,16 +123,17 @@ Priority must be HIGH/MEDIUM/LOW. Effort must be LOW/MEDIUM/HIGH.
 Order by priority (HIGH first). Be specific to the actual bias found.
 Return ONLY valid JSON array, nothing else.
 """
-    response = model.generate_content(prompt)
-    cleaned = _clean_json(response.text)
+    loop = asyncio.get_running_loop()
+    text = await loop.run_in_executor(None, _generate_with_retry, prompt)
+    cleaned = _clean_json(text)
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
         return [
             {
-                "title": "Review and balance training data",
+                "title": "Balance training data representation",
                 "priority": "HIGH",
-                "description": "Analyze the distribution of sensitive attributes in your training data and apply resampling techniques to achieve balanced representation.",
+                "description": "Analyse distribution of sensitive attributes and apply resampling techniques to achieve balanced representation across all groups.",
                 "expected_impact": "Expected to reduce Demographic Parity Difference by 40-60%",
                 "effort": "MEDIUM"
             }
@@ -97,8 +156,8 @@ Write exactly 3 paragraphs:
 Professional tone suitable for C-suite executives. Maximum 220 words.
 Do not use headers — just 3 clean paragraphs.
 """
-    response = model.generate_content(prompt)
-    return response.text
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _generate_with_retry, prompt)
 
 
 async def answer_question(question: str, analysis_results: dict) -> str:
@@ -114,5 +173,5 @@ User's Question: {question}
 Answer clearly and helpfully. Reference specific numbers from the results when relevant.
 Keep your answer focused and under 200 words.
 """
-    response = model.generate_content(prompt)
-    return response.text
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _generate_with_retry, prompt)

@@ -8,10 +8,19 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./fairlens.db")
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
-)
+# Neon / Render give "postgres://" but SQLAlchemy needs "postgresql://"
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# Engine args differ for SQLite vs PostgreSQL
+is_sqlite = "sqlite" in DATABASE_URL
+engine_args = {"connect_args": {"check_same_thread": False}} if is_sqlite else {
+    "pool_pre_ping": True,
+    "pool_size": 5,
+    "max_overflow": 10,
+}
+
+engine = create_engine(DATABASE_URL, **engine_args)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
