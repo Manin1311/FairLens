@@ -55,7 +55,7 @@ def _generate_with_retry(prompt: str, max_retries: int = 3) -> str:
         except Exception as e:
             err_str = str(e)
             # Rotate on quota, auth, or permission errors
-            if any(x in err_str for x in ["429", "403", "quota", "PERMISSION", "API_KEY", "ResourceExhausted", "PermissionDenied"]):
+            if any(x in err_str for x in ["429", "403", "503", "quota", "PERMISSION", "API_KEY", "ResourceExhausted", "PermissionDenied", "ServiceUnavailable", "overloaded", "UNAVAILABLE"]):
                 _rotate_key()
                 last_error = e
                 time.sleep(0.5)
