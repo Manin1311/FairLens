@@ -1,4 +1,5 @@
 import json
+import asyncio
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from sqlalchemy.orm import Session
@@ -81,11 +82,13 @@ async def run_audit(
     db.commit()
     db.refresh(audit)
 
-    # ── Call Gemini (explanation + fixes) ────────────────────────────────────
+    # ── Call Gemini in PARALLEL (3x faster than sequential) ─────────────────
     try:
-        explanation = await gemini_service.explain_bias_findings(analysis, file.filename)
-        fixes = await gemini_service.generate_fix_suggestions(analysis)
-        report_summary = await gemini_service.generate_report_summary(analysis, name)
+        explanation, fixes, report_summary = await asyncio.gather(
+            gemini_service.explain_bias_findings(analysis, file.filename),
+            gemini_service.generate_fix_suggestions(analysis),
+            gemini_service.generate_report_summary(analysis, name),
+        )
         fixes_json = json.dumps(fixes)
     except Exception as e:
         explanation = f"Gemini explanation unavailable: {str(e)}"
@@ -198,8 +201,10 @@ async def run_demo(dataset_name: str):
     explanation = ""
     fixes = []
     try:
-        explanation = await gemini_service.explain_bias_findings(analysis, f"{dataset_name} dataset")
-        fixes = await gemini_service.generate_fix_suggestions(analysis)
+        explanation, fixes = await asyncio.gather(
+            gemini_service.explain_bias_findings(analysis, f"{dataset_name} dataset"),
+            gemini_service.generate_fix_suggestions(analysis),
+        )
     except Exception as e:
         import traceback
         print(f"[GEMINI ERROR in demo/{dataset_name}]: {e}")
