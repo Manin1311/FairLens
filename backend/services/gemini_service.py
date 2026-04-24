@@ -20,12 +20,12 @@ def _load_keys() -> list[str]:
     primary = os.getenv("GEMINI_API_KEY", "")
     if primary and "your_gemini" not in primary:
         keys.append(primary)
-    # Additional keys: GEMINI_API_KEY_1 through GEMINI_API_KEY_9
-    for i in range(1, 10):
+    # Additional keys: GEMINI_API_KEY_1 through GEMINI_API_KEY_20
+    for i in range(1, 21):
         k = os.getenv(f"GEMINI_API_KEY_{i}", "")
         if k and "your_gemini" not in k:
             keys.append(k)
-    print(f"[FairLens] Loaded {len(keys)} Gemini API key(s)")
+    print(f"[FairLens] Gemini key pool loaded: {len(keys)} key(s) available")
     return keys
 
 _API_KEYS = _load_keys()
@@ -36,12 +36,17 @@ def _get_model() -> genai.GenerativeModel:
     if not _API_KEYS:
         raise RuntimeError("No Gemini API keys configured in .env")
     key = _API_KEYS[_current_key_idx % len(_API_KEYS)]
+    key_preview = key[:8] + "..." if key else "none"
+    print(f"[FairLens] Using key [{(_current_key_idx % len(_API_KEYS)) + 1}/{len(_API_KEYS)}]: {key_preview}")
     genai.configure(api_key=key)
     return genai.GenerativeModel(MODEL_NAME)
 
 def _rotate_key():
     global _current_key_idx
+    old = (_current_key_idx % len(_API_KEYS)) + 1
     _current_key_idx = (_current_key_idx + 1) % max(len(_API_KEYS), 1)
+    new = (_current_key_idx % len(_API_KEYS)) + 1
+    print(f"[FairLens] Key rotated: {old} → {new} (rate limit hit)")
 
 def _generate_with_retry(prompt: str, max_retries: int = 3) -> str:
     """Call Gemini with automatic key rotation on rate limit or auth errors."""
