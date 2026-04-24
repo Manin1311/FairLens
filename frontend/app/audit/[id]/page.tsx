@@ -10,7 +10,7 @@ import {
 import {
   ShieldCheck, AlertTriangle, CheckCircle2, FileText,
   ChevronLeft, MessageSquare, Send, Loader2, BarChart3, Zap,
-  XCircle, Scale, Users, Globe, Info
+  XCircle, Scale, Users, Globe, Info, TrendingUp, Wand2
 } from "lucide-react";
 import { auditAPI, reportAPI } from "@/lib/api";
 
@@ -116,7 +116,120 @@ function CompliancePanel({ attrs }: { attrs: any[] }) {
   );
 }
 
+/* ─── What-If Simulator ──────────────────────────────────────────────────── */
+function WhatIfSimulator({ attrs, overallScore }: { attrs: any[]; overallScore: number }) {
+  const [removed, setRemoved] = useState<string | null>(null);
+  if (!attrs || attrs.length < 1) return null;
+  const validAttrs = attrs.filter((a: any) => typeof a.fairness_score === "number");
+  if (validAttrs.length === 0) return null;
+
+  const remaining = removed ? validAttrs.filter((a: any) => a.sensitive_column !== removed) : validAttrs;
+  const simScore = remaining.length > 0
+    ? Math.round(remaining.reduce((s: number, a: any) => s + a.fairness_score, 0) / remaining.length)
+    : 100;
+  const delta = simScore - overallScore;
+  const improved = delta > 0;
+  const removedAttr = validAttrs.find((a: any) => a.sensitive_column === removed);
+  const scoreColor = (s: number) => s >= 75 ? "#22c55e" : s >= 50 ? "#f59e0b" : "#ef4444";
+  const riskLabel  = (s: number) => s >= 75 ? "LOW RISK" : s >= 50 ? "MEDIUM RISK" : "HIGH RISK";
+
+  return (
+    <motion.div className="mb-6 glass p-6"
+      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+      <div className="flex items-center gap-2 mb-2">
+        <Wand2 size={18} className="text-purple-400" />
+        <h2 className="font-semibold text-white">What-If Bias Simulator</h2>
+        <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-400 font-medium">Interactive</span>
+      </div>
+      <p className="text-sm text-slate-400 mb-5">
+        Click an attribute to simulate removing it from the model. See how your fairness score would change instantly.
+      </p>
+
+      {/* Attribute Buttons */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        {validAttrs.map((a: any) => {
+          const isRemoved = removed === a.sensitive_column;
+          const attrColor = a.risk_level === "HIGH" ? "#ef4444" : a.risk_level === "MEDIUM" ? "#f59e0b" : "#22c55e";
+          return (
+            <button key={a.sensitive_column}
+              onClick={() => setRemoved(isRemoved ? null : a.sensitive_column)}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium border transition-all duration-200"
+              style={{
+                background:   isRemoved ? "rgba(167,139,250,0.15)" : "rgba(255,255,255,0.04)",
+                borderColor:  isRemoved ? "rgba(167,139,250,0.5)"  : "rgba(255,255,255,0.1)",
+                color:        isRemoved ? "#c4b5fd" : "#94a3b8",
+                textDecoration: isRemoved ? "line-through" : "none",
+              }}>
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: attrColor }} />
+              {a.sensitive_column}
+              <span className="text-xs opacity-60">({a.fairness_score})</span>
+            </button>
+          );
+        })}
+        {removed && (
+          <button onClick={() => setRemoved(null)}
+            className="px-3 py-2 rounded-xl text-xs text-slate-500 border border-white/10 hover:border-white/20 transition-colors">
+            ↺ Reset
+          </button>
+        )}
+      </div>
+
+      {/* Score Comparison */}
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="rounded-xl p-4 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wider">Current Score</div>
+          <div className="text-4xl font-black stat-number mb-1" style={{ color: scoreColor(overallScore) }}>{overallScore}</div>
+          <div className="text-xs font-semibold" style={{ color: scoreColor(overallScore) }}>{riskLabel(overallScore)}</div>
+        </div>
+        <div className="rounded-xl p-4 text-center transition-all duration-500"
+          style={{
+            background: removed ? (improved ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)") : "rgba(255,255,255,0.03)",
+            border: `1px solid ${removed ? (improved ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)") : "rgba(255,255,255,0.08)"}`,
+          }}>
+          <div className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wider">
+            {removed ? `Without "${removed}"` : "Select to Simulate"}
+          </div>
+          <motion.div key={simScore} className="text-4xl font-black stat-number mb-1"
+            style={{ color: removed ? scoreColor(simScore) : "#475569" }}
+            initial={{ scale: 0.75, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 320, damping: 20 }}>
+            {removed ? simScore : "—"}
+          </motion.div>
+          {removed && <div className="text-xs font-semibold" style={{ color: scoreColor(simScore) }}>{riskLabel(simScore)}</div>}
+        </div>
+      </div>
+
+      {/* Impact Message */}
+      {removed && (
+        <motion.div className="rounded-xl p-4 flex items-start gap-3"
+          style={{
+            background: improved ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)",
+            border: `1px solid ${improved ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}`,
+          }}
+          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <TrendingUp size={16} className="mt-0.5 flex-shrink-0" style={{ color: improved ? "#4ade80" : "#f87171" }} />
+          <div>
+            <p className="text-sm font-semibold mb-1" style={{ color: improved ? "#4ade80" : "#f87171" }}>
+              {improved
+                ? `+${delta} point improvement by removing "${removed}" from decisions`
+                : `Removing "${removed}" has minimal impact (${delta > 0 ? "+" : ""}${delta} pts)`}
+            </p>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              {removedAttr?.risk_level === "HIGH" && improved
+                ? `"${removed}" is your highest-bias attribute (score: ${removedAttr.fairness_score}/100). Removing it or applying reweighting could bring your risk level from ${riskLabel(overallScore)} → ${riskLabel(simScore)}.`
+                : improved
+                ? `Excluding "${removed}" from model inputs would raise your overall fairness score from ${overallScore} → ${simScore}.`
+                : `"${removed}" is not your main bias driver. Focus remediation efforts on your higher-risk attributes.`}
+            </p>
+          </div>
+        </motion.div>
+      )}
+    </motion.div>
+  );
+}
+
 const MetricBar = ({ label, value, threshold, good }: any) => {
+
   const abs = Math.abs(value);
   const isGood = good ? value > threshold : abs < threshold;
   return (
@@ -274,6 +387,9 @@ export default function AuditResultPage() {
 
         {/* Compliance Badges */}
         <CompliancePanel attrs={attrs} />
+
+        {/* What-If Simulator */}
+        <WhatIfSimulator attrs={attrs} overallScore={analysis.overall_fairness_score ?? 0} />
 
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Left: Charts */}
