@@ -54,6 +54,8 @@ function ScoreRing({ score, color, label }: { score: number; color: string; labe
 }
 
 export default function HomePage() {
+  const [loggedIn, setLoggedIn] = useState(false);
+  useEffect(() => { setLoggedIn(!!localStorage.getItem("fairlens_token")); }, []);
   return (
     <div className="hero-bg min-h-screen overflow-x-hidden">
 
@@ -71,8 +73,14 @@ export default function HomePage() {
             <a href="#compliance" className="hover:text-white transition-colors">Compliance</a>
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/login" className="btn-ghost text-sm">Sign In</Link>
-            <Link href="/register" className="btn-primary text-sm">Get Started Free</Link>
+            {loggedIn ? (
+              <Link href="/dashboard" className="btn-primary text-sm">Dashboard</Link>
+            ) : (
+              <>
+                <Link href="/login" className="btn-ghost text-sm">Sign In</Link>
+                <Link href="/register" className="btn-primary text-sm">Get Started Free</Link>
+              </>
+            )}
           </div>
         </div>
       </nav>

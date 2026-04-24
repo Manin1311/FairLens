@@ -371,6 +371,9 @@ function DemoContent() {
 }
 
 export default function DemoPage() {
+  const [loggedIn, setLoggedIn] = useState(false);
+  useEffect(() => { setLoggedIn(!!localStorage.getItem("fairlens_token")); }, []);
+
   return (
     <div className="min-h-screen hero-bg">
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/5 backdrop-blur-xl bg-gray-950/80">
@@ -380,8 +383,14 @@ export default function DemoPage() {
             <span className="text-lg font-bold gradient-text-blue">FairLens</span>
           </Link>
           <div className="flex items-center gap-3">
-            <Link href="/login" className="btn-ghost text-sm">Sign In</Link>
-            <Link href="/register" className="btn-primary text-sm">Get Started Free</Link>
+            {loggedIn ? (
+              <Link href="/dashboard" className="btn-primary text-sm">Dashboard</Link>
+            ) : (
+              <>
+                <Link href="/login" className="btn-ghost text-sm">Sign In</Link>
+                <Link href="/register" className="btn-primary text-sm">Get Started Free</Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
