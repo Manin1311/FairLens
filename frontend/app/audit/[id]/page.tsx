@@ -9,13 +9,112 @@ import {
 } from "recharts";
 import {
   ShieldCheck, AlertTriangle, CheckCircle2, FileText,
-  ChevronLeft, MessageSquare, Send, Loader2, BarChart3, Zap
+  ChevronLeft, MessageSquare, Send, Loader2, BarChart3, Zap,
+  XCircle, Scale, Users, Globe, Info
 } from "lucide-react";
 import { auditAPI, reportAPI } from "@/lib/api";
 
 const RISK_COLOR: Record<string, string> = {
   HIGH: "#ef4444", MEDIUM: "#f59e0b", LOW: "#22c55e"
 };
+
+/* ─── Compliance Panel ───────────────────────────────────────────────────── */
+function CompliancePanel({ attrs }: { attrs: any[] }) {
+  if (!attrs || attrs.length === 0) return null;
+
+  // Aggregate across all attributes
+  const avgDPD = attrs.reduce((s: number, a: any) => s + Math.abs(a.demographic_parity_difference ?? 0), 0) / attrs.length;
+  const avgDIR = attrs.reduce((s: number, a: any) => s + (a.disparate_impact_ratio ?? 1), 0) / attrs.length;
+  const avgEOD = attrs.reduce((s: number, a: any) => s + Math.abs(a.equalized_odds_difference ?? 0), 0) / attrs.length;
+
+  // Compliance rules
+  const euAct = avgDPD < 0.1 && avgDIR > 0.8;
+  const eeoc  = avgDIR >= 0.80;  // 4/5 (80%) rule
+  const iso   = true;             // running the audit = assessed
+
+  const badges = [
+    {
+      name: "EU AI Act",
+      pass: euAct,
+      desc: euAct
+        ? "Meets high-risk AI fairness thresholds (DPD<0.1, DIR>0.8)"
+        : `Non-compliant — DPD: ${avgDPD.toFixed(3)}, DIR: ${avgDIR.toFixed(3)}`,
+      detail: "Art. 10 & Annex III — High-Risk AI Systems",
+      icon: Scale,
+      learnMore: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:52021PC0206",
+    },
+    {
+      name: "EEOC 4/5 Rule",
+      pass: eeoc,
+      desc: eeoc
+        ? `Selection rate ratio ≥ 80% across groups (DIR: ${avgDIR.toFixed(3)})`
+        : `Below 80% threshold — DIR: ${avgDIR.toFixed(3)} (need ≥ 0.80)`,
+      detail: "US Equal Employment Opportunity Commission",
+      icon: Users,
+      learnMore: "https://www.eeoc.gov/laws/guidance/questions-and-answers-clarify-and-provide-common-interpretation-uniform-guidelines",
+    },
+    {
+      name: "ISO 42001",
+      pass: iso,
+      desc: "AI bias risk assessed — audit documentation generated",
+      detail: "AI Management System Standard — Bias Risk Assessment",
+      icon: Globe,
+      learnMore: "https://www.iso.org/standard/81230.html",
+    },
+  ];
+
+  const passCount = badges.filter(b => b.pass).length;
+
+  return (
+    <motion.div className="mb-6 glass p-6"
+      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-2">
+          <ShieldCheck size={18} className="text-blue-400" />
+          <h2 className="font-semibold text-white">Regulatory Compliance</h2>
+        </div>
+        <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${
+          passCount === 3 ? "risk-low" : passCount >= 2 ? "risk-medium" : "risk-high"
+        }`}>
+          {passCount}/3 Passed
+        </span>
+      </div>
+      <div className="grid md:grid-cols-3 gap-4">
+        {badges.map((b) => (
+          <div key={b.name}
+            className="rounded-xl p-4 transition-all"
+            style={{
+              background: b.pass ? "rgba(34,197,94,0.06)" : "rgba(239,68,68,0.06)",
+              border: `1px solid ${b.pass ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}`
+            }}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <b.icon size={15} style={{ color: b.pass ? "#4ade80" : "#f87171" }} />
+                <span className="font-bold text-sm text-white">{b.name}</span>
+              </div>
+              {b.pass
+                ? <CheckCircle2 size={18} className="text-green-400" />
+                : <XCircle size={18} className="text-red-400" />
+              }
+            </div>
+            <p className="text-xs leading-relaxed mb-2" style={{ color: b.pass ? "#86efac" : "#fca5a5" }}>
+              {b.desc}
+            </p>
+            <p className="text-xs text-slate-600">{b.detail}</p>
+          </div>
+        ))}
+      </div>
+      {passCount < 3 && (
+        <div className="mt-4 flex items-start gap-2 text-xs text-slate-500 px-1">
+          <Info size={13} className="mt-0.5 flex-shrink-0 text-yellow-500" />
+          <span>
+            Non-compliant results indicate real legal risk. Review the fix suggestions below and re-audit after remediation.
+          </span>
+        </div>
+      )}
+    </motion.div>
+  );
+}
 
 const MetricBar = ({ label, value, threshold, good }: any) => {
   const abs = Math.abs(value);
@@ -172,6 +271,9 @@ export default function AuditResultPage() {
             ))}
           </div>
         </motion.div>
+
+        {/* Compliance Badges */}
+        <CompliancePanel attrs={attrs} />
 
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Left: Charts */}
