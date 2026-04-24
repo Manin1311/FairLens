@@ -83,7 +83,7 @@ export default function HomePage() {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
             <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-400 text-sm font-medium mb-8">
               <span className="w-2 h-2 rounded-full bg-blue-400 pulse-dot" />
-              Google Solution Challenge 2026 · Powered by Gemini AI
+              Powered by Google Gemini AI
             </span>
           </motion.div>
 
@@ -406,7 +406,7 @@ export default function HomePage() {
             <span className="font-bold text-white">FairLens</span>
             <span className="text-slate-600 text-sm ml-2">Making AI Fair for Everyone</span>
           </div>
-          <p className="text-slate-600 text-sm">Built with Google Gemini · Google Solution Challenge 2026</p>
+          <p className="text-slate-600 text-sm">Built with Google Gemini</p>
           <div className="flex items-center gap-5 text-sm text-slate-500">
             <Link href="/demo" className="hover:text-white transition-colors">Live Demo</Link>
             <Link href="/login" className="hover:text-white transition-colors">Sign In</Link>
