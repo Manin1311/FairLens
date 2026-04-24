@@ -15,7 +15,7 @@ import {
 import { auditAPI, reportAPI } from "@/lib/api";
 
 const RISK_COLOR: Record<string, string> = {
-  HIGH: "#ef4444", MEDIUM: "#f59e0b", LOW: "#22c55e"
+  HIGH: "#ef4444", MEDIUM: "#f59e0b", LOW: "#22c55e", ERROR: "#94a3b8"
 };
 
 /* ─── Compliance Panel ───────────────────────────────────────────────────── */
@@ -227,11 +227,64 @@ function WhatIfSimulator({ attrs, overallScore }: { attrs: any[]; overallScore: 
   );
 }
 
+/* ─── Bias Drivers Panel ─────────────────────────────────────────────────── */
+function BiasDriversPanel({ drivers }: { drivers: any[] }) {
+  if (!drivers || drivers.length === 0) return null;
+  const max = Math.max(...drivers.map((d: any) => d.contribution_pct || 0), 1);
+  return (
+    <motion.div className="mb-6 glass p-6"
+      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+      <div className="flex items-center gap-2 mb-5">
+        <TrendingUp size={18} className="text-orange-400" />
+        <h2 className="font-semibold text-white">Why Bias Happens — Attribute Influence</h2>
+        <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400">Ranked</span>
+      </div>
+      <p className="text-sm text-slate-400 mb-5">
+        Cramér&apos;s V measures how strongly each attribute statistically drives unequal outcomes.
+        Higher % = stronger bias signal from that column.
+      </p>
+      <div className="space-y-4">
+        {drivers.map((d: any, i: number) => {
+          const pct = d.contribution_pct ?? 0;
+          const color = d.risk_level === "HIGH" ? "#ef4444" : d.risk_level === "MEDIUM" ? "#f59e0b" : "#22c55e";
+          return (
+            <div key={d.column}>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-white">
+                    {i + 1}. {d.column}
+                  </span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded font-bold ${
+                    d.risk_level === "HIGH" ? "risk-high" : d.risk_level === "MEDIUM" ? "risk-medium" : "risk-low"
+                  }`}>{d.risk_level}</span>
+                </div>
+                <span className="text-sm font-bold font-mono" style={{ color }}>{pct.toFixed(1)}%</span>
+              </div>
+              <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                <motion.div className="h-2.5 rounded-full"
+                  style={{ background: color }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(pct / max) * 100}%` }}
+                  transition={{ duration: 0.8, delay: i * 0.1 }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-4 p-3 rounded-xl text-xs text-slate-400 leading-relaxed"
+        style={{ background: "rgba(251,146,60,0.06)", border: "1px solid rgba(251,146,60,0.15)" }}>
+        <strong className="text-orange-400">Interpretation: </strong>
+        The attribute with the highest % is your primary bias driver. Prioritize remediation there first for maximum impact.
+      </div>
+    </motion.div>
+  );
+}
+
 const MetricBar = ({ label, value, threshold, good }: any) => {
   if (value == null) return (
     <div className="flex items-center gap-4">
       <div className="w-40 text-sm text-slate-400 flex-shrink-0">{label}</div>
-      <div className="flex-1 text-xs text-slate-600 italic">Not computed</div>
+      <div className="flex-1 text-xs text-slate-600 italic">Not computed for this attribute</div>
     </div>
   );
   const abs = Math.abs(value);
@@ -390,7 +443,10 @@ export default function AuditResultPage() {
         </motion.div>
 
         {/* Compliance Badges */}
-        <CompliancePanel attrs={attrs} />
+        <CompliancePanel attrs={attrs.filter((a: any) => !a.error)} />
+
+        {/* Bias Drivers — WHY bias happens */}
+        <BiasDriversPanel drivers={analysis.bias_drivers ?? []} />
 
         {/* What-If Simulator */}
         <WhatIfSimulator attrs={attrs} overallScore={analysis.overall_fairness_score ?? 0} />
@@ -412,41 +468,95 @@ export default function AuditResultPage() {
                         : "bg-white/5 border-white/10 text-slate-400 hover:border-white/20"}`}>
                     {a.sensitive_column}
                     <span className={`ml-1.5 px-1.5 py-0.5 rounded text-xs ${
+                      a.error ? "bg-slate-700 text-slate-400" :
                       a.risk_level === "HIGH" ? "risk-high" : a.risk_level === "MEDIUM" ? "risk-medium" : "risk-low"
-                    }`}>{a.risk_level}</span>
+                    }`}>{a.error ? "ERR" : a.risk_level}</span>
                   </button>
                 ))}
               </div>
 
               {activeAttrData && (
                 <>
-                  {/* Metrics bars */}
-                  <div className="space-y-3 mb-6">
-                    <MetricBar label="Demographic Parity Diff." value={activeAttrData.demographic_parity_difference} threshold={0.1} good={false} />
-                    <MetricBar label="Equalized Odds Diff." value={activeAttrData.equalized_odds_difference} threshold={0.1} good={false} />
-                    <MetricBar label="Disparate Impact Ratio" value={activeAttrData.disparate_impact_ratio} threshold={0.8} good={true} />
-                  </div>
-
-                  {/* Group bar chart */}
-                  {groupChartData.length > 0 && (
-                    <div>
-                      <p className="text-sm text-slate-400 mb-3">Positive Decision Rate by Group (%)</p>
-                      <ResponsiveContainer width="100%" height={220}>
-                        <BarChart data={groupChartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                          <XAxis dataKey="group" tick={{ fill: "#94a3b8", fontSize: 12 }} />
-                          <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} domain={[0, 100]} />
-                          <Tooltip
-                            contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, color: "#e2e8f0" }}
-                            formatter={(v: any) => [`${v}%`]}
-                          />
-                          <Bar dataKey="positiveRate" name="Positive Rate %" radius={[6, 6, 0, 0]}>
-                            {groupChartData.map((_, i) => (
-                              <Cell key={i} fill={i === 0 ? "#3b82f6" : i === 1 ? "#a78bfa" : "#34d399"} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
+                  {/* Error state for this attribute */}
+                  {activeAttrData.error ? (
+                    <div className="rounded-xl p-4 mb-4"
+                      style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <XCircle size={15} className="text-red-400" />
+                        <span className="text-sm font-semibold text-red-400">Analysis Failed for &quot;{activeAttrData.sensitive_column}&quot;</span>
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed">{activeAttrData.error}</p>
+                      <p className="text-xs text-slate-600 mt-2">
+                        Tip: Ensure this column is categorical (e.g. gender, race) with at least 2 groups and 5+ rows per group.
+                      </p>
                     </div>
+                  ) : (
+                    <>
+                      {/* Most disadvantaged group callout */}
+                      {activeAttrData.most_disadvantaged_group && (
+                        <div className="rounded-xl p-3 mb-4 flex items-start gap-3"
+                          style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)" }}>
+                          <AlertTriangle size={14} className="text-red-400 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <span className="text-xs font-semibold text-red-400">Most Disadvantaged: </span>
+                            <span className="text-xs text-slate-300">&quot;{activeAttrData.most_disadvantaged_group}&quot; group receives
+                              {activeAttrData.group_statistics?.[activeAttrData.most_disadvantaged_group]
+                                ? ` ${activeAttrData.group_statistics[activeAttrData.most_disadvantaged_group].positive_rate}% positive rate`
+                                : " the lowest positive rate"}
+                            </span>
+                            {activeAttrData.most_advantaged_group && activeAttrData.most_advantaged_group !== activeAttrData.most_disadvantaged_group && (
+                              <span className="text-xs text-slate-500"> vs &quot;{activeAttrData.most_advantaged_group}&quot;
+                                {activeAttrData.group_statistics?.[activeAttrData.most_advantaged_group]
+                                  ? ` (${activeAttrData.group_statistics[activeAttrData.most_advantaged_group].positive_rate}%)`
+                                  : ""}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Metrics bars */}
+                      <div className="space-y-3 mb-6">
+                        <MetricBar label="Demographic Parity Diff." value={activeAttrData.demographic_parity_difference} threshold={0.1} good={false} />
+                        <MetricBar label="Equalized Odds Diff." value={activeAttrData.equalized_odds_difference} threshold={0.1} good={false} />
+                        <MetricBar label="Disparate Impact Ratio" value={activeAttrData.disparate_impact_ratio} threshold={0.8} good={true} />
+                        {activeAttrData.bias_contribution_pct != null && (
+                          <div className="flex items-center gap-4">
+                            <div className="w-40 text-sm text-slate-400 flex-shrink-0">Bias Contribution</div>
+                            <div className="flex-1 bg-slate-800 rounded-full h-2 overflow-hidden">
+                              <div className="h-2 rounded-full bg-orange-500 transition-all duration-700"
+                                style={{ width: `${Math.min(100, activeAttrData.bias_contribution_pct)}%` }} />
+                            </div>
+                            <div className="text-sm font-mono font-bold w-16 text-right text-orange-400">
+                              {activeAttrData.bias_contribution_pct.toFixed(1)}%
+                            </div>
+                            <div className="text-xs px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">Cramér V</div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Group bar chart */}
+                      {groupChartData.length > 0 && (
+                        <div>
+                          <p className="text-sm text-slate-400 mb-3">Positive Decision Rate by Group (%)</p>
+                          <ResponsiveContainer width="100%" height={220}>
+                            <BarChart data={groupChartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                              <XAxis dataKey="group" tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                              <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} domain={[0, 100]} />
+                              <Tooltip
+                                contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, color: "#e2e8f0" }}
+                                formatter={(v: any) => [`${v}%`]}
+                              />
+                              <Bar dataKey="positiveRate" name="Positive Rate %" radius={[6, 6, 0, 0]}>
+                                {groupChartData.map((_: any, i: number) => (
+                                  <Cell key={i} fill={i === 0 ? "#3b82f6" : i === 1 ? "#a78bfa" : "#34d399"} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               )}
