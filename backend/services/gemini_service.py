@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MODEL_NAME = "gemini-2.5-flash"
+MODEL_NAME = "gemini-1.5-flash"  # 1500 RPD free tier (vs 250 for 2.5-flash)
 
 # ─── Load all API keys ────────────────────────────────────────────────────────
 def _load_keys() -> list[str]:
@@ -48,22 +48,26 @@ def _rotate_key():
     new = (_current_key_idx % len(_API_KEYS)) + 1
     print(f"[FairLens] Key rotated: {old} → {new} (rate limit hit)")
 
-def _generate_with_retry(prompt: str, max_retries: int = 3) -> str:
+def _generate_with_retry(prompt: str, max_retries: int = 5) -> str:
     """Call Gemini with automatic key rotation on rate limit or auth errors."""
     last_error = None
     attempts = max_retries * max(len(_API_KEYS), 1)
-    for _ in range(attempts):
+    for attempt in range(attempts):
         try:
             model = _get_model()
             response = model.generate_content(prompt)
             return response.text
         except Exception as e:
             err_str = str(e)
-            # Rotate on quota, auth, or permission errors
-            if any(x in err_str for x in ["429", "403", "503", "quota", "PERMISSION", "API_KEY", "ResourceExhausted", "PermissionDenied", "ServiceUnavailable", "overloaded", "UNAVAILABLE"]):
+            # Rotate on quota, auth, or server errors
+            if any(x in err_str for x in ["429", "403", "503", "quota", "PERMISSION",
+                                           "API_KEY", "ResourceExhausted", "PermissionDenied",
+                                           "ServiceUnavailable", "overloaded", "UNAVAILABLE"]):
                 _rotate_key()
                 last_error = e
-                time.sleep(0.5)
+                # Longer wait on daily quota exhaustion
+                wait = 2.0 if "quota" in err_str.lower() or "exceeded" in err_str.lower() else 1.0
+                time.sleep(wait)
                 continue
             raise e  # Re-raise content/model errors immediately
     raise Exception(f"All {len(_API_KEYS)} Gemini API keys exhausted. Last error: {last_error}")
