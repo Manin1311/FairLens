@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ShieldCheck, Mail, Lock, User, Building2, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { authAPI } from "@/lib/api";
+
+const GOOGLE_CLIENT_ID = "997587061669-3abhl7jpso6eo88pim5d1ugp9raskseq.apps.googleusercontent.com";
 
 function GoogleIcon() {
   return (
@@ -23,7 +26,36 @@ export default function RegisterPage() {
   const [form, setForm] = useState({ email: "", name: "", organization: "", password: "" });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const handleGoogleSignup = () => {
+    if (typeof window === "undefined" || !(window as any).google) {
+      setError("Google Sign-In is loading, please try again.");
+      return;
+    }
+    setError("");
+    setGoogleLoading(true);
+    const g = (window as any).google;
+    g.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: async (response: { credential: string }) => {
+        try {
+          const res = await authAPI.googleAuth(response.credential);
+          const { access_token, user } = res.data;
+          localStorage.setItem("fairlens_token", access_token);
+          localStorage.setItem("fairlens_user", JSON.stringify(user));
+          router.push("/dashboard");
+        } catch (err: any) {
+          setError(err.response?.data?.detail || "Google sign-up failed.");
+        } finally {
+          setGoogleLoading(false);
+        }
+      },
+      ux_mode: "popup",
+    });
+    g.accounts.id.prompt();
+  };
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -70,16 +102,19 @@ export default function RegisterPage() {
           {/* Google Sign-in */}
           <button
             type="button"
-            onClick={() => setError("Google sign-in coming soon! Use email below.")}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border mb-5 text-sm font-medium transition-all duration-200 hover:shadow-md"
+            onClick={handleGoogleSignup}
+            disabled={googleLoading}
+            className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border mb-5 text-sm font-medium transition-all duration-200 hover:shadow-md disabled:opacity-60"
             style={{
               background: "var(--bg-card-hover)",
               borderColor: "var(--border)",
               color: "var(--text-primary)"
             }}
           >
-            <GoogleIcon />
-            Continue with Google
+            {googleLoading ? (
+              <span className="w-4 h-4 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
+            ) : <GoogleIcon />}
+            {googleLoading ? "Signing up..." : "Continue with Google"}
           </button>
 
           <div className="flex items-center gap-3 mb-5">

@@ -38,7 +38,10 @@ export const authAPI = {
   login: (data: { email: string; password: string }) =>
     api.post("/api/auth/login", data),
   me: () => api.get("/api/auth/me"),
+  googleAuth: (credential: string) =>
+    api.post("/api/auth/google", { credential }),
 };
+
 
 // ─── Audit ────────────────────────────────────────────────────────────────────
 export const auditAPI = {
