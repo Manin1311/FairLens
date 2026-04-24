@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MODEL_NAME = "gemini-1.5-flash"  # 1500 RPD free tier (vs 250 for 2.5-flash)
+MODEL_NAME = "gemini-2.5-flash"
 
 # ─── Load all API keys ────────────────────────────────────────────────────────
 def _load_keys() -> list[str]:
