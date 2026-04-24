@@ -61,6 +61,10 @@ def detect_target_column(df: pd.DataFrame) -> str:
 
 def encode_binary(series: pd.Series) -> pd.Series:
     """Encode any series robustly to binary 0/1 values."""
+    # Guard: DataFrame with duplicate column names → take first column
+    if isinstance(series, pd.DataFrame):
+        series = series.iloc[:, 0]
+
     series = series.copy()
 
     # Already numeric with only 0/1 values
@@ -92,29 +96,43 @@ def encode_binary(series: pd.Series) -> pd.Series:
 def _make_categorical(series: pd.Series, col_name: str) -> pd.Series:
     """
     Convert a sensitive column to a clean categorical series.
-    - If numeric with many unique values → bin into quartile groups
-    - If string with too many categories → keep top N + 'Other'
-    - Always returns a string series with 2-20 unique values
+    Handles numeric, string, and edge cases robustly.
     """
+    # Guard: if somehow a DataFrame was passed (duplicate col names), take first col
+    if isinstance(series, pd.DataFrame):
+        series = series.iloc[:, 0]
+
     series = series.astype(str).str.strip()
-    series = series.replace({'nan': 'Unknown', 'none': 'Unknown', '': 'Unknown'})
+    series = series.replace({'nan': 'Unknown', 'none': 'Unknown', 'NaN': 'Unknown', '': 'Unknown'})
 
     n_unique = series.nunique()
 
-    # If the column looks numeric, try to bin it
+    # Try to treat as numeric and bin it
     try:
-        numeric = pd.to_numeric(series)
+        numeric = pd.to_numeric(series, errors='raise')
         if n_unique > MAX_CATEGORIES:
-            # Bin into quartile groups
-            binned = pd.qcut(numeric, q=4, labels=['Q1 (Low)', 'Q2', 'Q3', 'Q4 (High)'],
-                             duplicates='drop')
-            return binned.astype(str)
+            # Bin into at most 4 quartile groups; fall back to 2 if too few unique values
+            for q in [4, 3, 2]:
+                try:
+                    labels = ['Q1 Low', 'Q2', 'Q3', 'Q4 High'][:q]
+                    binned = pd.qcut(numeric, q=q, labels=labels, duplicates='drop')
+                    result = binned.astype(str).replace({'nan': 'Unknown'})
+                    if result.nunique() >= 2:
+                        return pd.Series(result.values, index=series.index)
+                except Exception:
+                    continue
+            # Last resort: median split
+            med = numeric.median()
+            return pd.Series(
+                (numeric > med).map({True: 'High', False: 'Low'}).values,
+                index=series.index
+            )
         else:
             return series  # numeric but few unique values → treat as categorical
     except (ValueError, TypeError):
-        pass  # not numeric
+        pass  # not numeric — fall through to string handling
 
-    # String column with too many categories → keep top (MAX_CATEGORIES - 1), rest = "Other"
+    # String column with too many categories → keep top N, rest = 'Other'
     if n_unique > MAX_CATEGORIES:
         top = series.value_counts().nlargest(MAX_CATEGORIES - 1).index.tolist()
         return series.where(series.isin(top), other='Other')
