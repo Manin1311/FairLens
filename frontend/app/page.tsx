@@ -80,12 +80,7 @@ export default function HomePage() {
       {/* ── Hero ─────────────────────────────────────────────────────── */}
       <section className="pt-36 pb-20 px-6">
         <div className="max-w-5xl mx-auto text-center">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-400 text-sm font-medium mb-8">
-              <span className="w-2 h-2 rounded-full bg-blue-400 pulse-dot" />
-              Powered by Google Gemini AI
-            </span>
-          </motion.div>
+
 
           <motion.h1 className="text-6xl md:text-7xl font-extrabold leading-[1.08] mb-6"
             initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}>
