@@ -25,7 +25,6 @@ function CompliancePanel({ attrs }: { attrs: any[] }) {
   // Aggregate across all attributes
   const avgDPD = attrs.reduce((s: number, a: any) => s + Math.abs(a.demographic_parity_difference ?? 0), 0) / attrs.length;
   const avgDIR = attrs.reduce((s: number, a: any) => s + (a.disparate_impact_ratio ?? 1), 0) / attrs.length;
-  const avgEOD = attrs.reduce((s: number, a: any) => s + Math.abs(a.equalized_odds_difference ?? 0), 0) / attrs.length;
 
   // Compliance rules
   const euAct = avgDPD < 0.1 && avgDIR > 0.8;
@@ -229,7 +228,12 @@ function WhatIfSimulator({ attrs, overallScore }: { attrs: any[]; overallScore: 
 }
 
 const MetricBar = ({ label, value, threshold, good }: any) => {
-
+  if (value == null) return (
+    <div className="flex items-center gap-4">
+      <div className="w-40 text-sm text-slate-400 flex-shrink-0">{label}</div>
+      <div className="flex-1 text-xs text-slate-600 italic">Not computed</div>
+    </div>
+  );
   const abs = Math.abs(value);
   const isGood = good ? value > threshold : abs < threshold;
   return (
