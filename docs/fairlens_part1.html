@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FairLens AI — Part 1: Overview & Problem</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,sans-serif;background:#fff;color:#0f172a;line-height:1.7;font-size:15px}
+@media print{.noprint{display:none}.pb{page-break-before:always}}
+a{color:#2563eb;text-decoration:none}
+h1{font-size:2.4rem;font-weight:900;line-height:1.15}
+h2{font-size:1.6rem;font-weight:800;margin-bottom:.75rem;color:#0f172a}
+h3{font-size:1.1rem;font-weight:700;margin-bottom:.4rem;color:#1e293b}
+p{color:#334155;margin-bottom:.9rem}
+.wrap{max-width:860px;margin:0 auto;padding:2rem}
+/* nav */
+.nav{background:#0f172a;padding:1rem 2rem;display:flex;gap:1rem;flex-wrap:wrap;align-items:center}
+.nav span{color:#94a3b8;font-size:13px;font-weight:600}
+.nav a{color:#60a5fa;font-size:13px;padding:.3rem .8rem;border:1px solid #1e3a8a;border-radius:6px}
+.nav a:hover{background:#1e3a8a}
+/* cover */
+.cover{background:linear-gradient(135deg,#0f172a,#1e3a8a,#0f172a);min-height:92vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:3rem 2rem}
+.cover h1{color:#fff;font-size:3rem;margin-bottom:1rem}
+.cover p{color:#94a3b8;font-size:1.1rem;max-width:580px;margin:0 auto 2rem}
+.tag{display:inline-block;padding:.35rem 1rem;border-radius:50px;font-size:12px;font-weight:700;margin:.25rem;border:1px solid rgba(255,255,255,.2);color:#cbd5e1}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1.5rem;max-width:680px;margin:2.5rem auto 0;text-align:center}
+.stat-num{font-size:2.2rem;font-weight:900;color:#60a5fa;display:block}
+.stat-lbl{font-size:11px;color:#94a3b8;font-weight:600;margin-top:.2rem}
+/* sections */
+.section{padding:3rem 0;border-bottom:2px solid #f1f5f9}
+.label{font-size:11px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#2563eb;margin-bottom:.5rem}
+/* callout */
+.callout{border-left:4px solid #2563eb;background:#dbeafe;padding:1rem 1.25rem;border-radius:0 10px 10px 0;margin:1.25rem 0;color:#1e40af;font-size:14px}
+.callout-red{border-color:#dc2626;background:#fee2e2;color:#991b1b}
+/* grid */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
+@media(max-width:640px){.g2,.g3,.stats-row{grid-template-columns:1fr}.cover h1{font-size:2rem}.stats-row{grid-template-columns:repeat(2,1fr)}}
+/* cards */
+.card{border:1px solid #e2e8f0;border-radius:14px;padding:1.25rem;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.card-b{background:#eff6ff;border-color:#bfdbfe}
+.card-g{background:#f0fdf4;border-color:#bbf7d0}
+.card-o{background:#fff7ed;border-color:#fed7aa}
+.card-r{background:#fef2f2;border-color:#fecaca}
+.card-p{background:#faf5ff;border-color:#e9d5ff}
+/* metric big */
+.metric{text-align:center;padding:1.25rem .75rem}
+.big-num{font-size:2.2rem;font-weight:900;display:block}
+.big-lbl{font-size:12px;color:#64748b;margin-top:.3rem}
+/* real cases */
+.case{display:flex;gap:1rem;align-items:flex-start;padding:1rem;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:.75rem}
+.case-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0}
+/* process nav */
+.pnav{display:flex;justify-content:space-between;align-items:center;padding:1.5rem 0;border-top:2px solid #f1f5f9;margin-top:2rem}
+.btn{padding:.6rem 1.4rem;background:#2563eb;color:#fff;border-radius:8px;font-weight:700;font-size:13px}
+</style>
+</head>
+<body>
+<div class="nav noprint">
+  <span>FairLens AI — Project Summary</span>
+  <a href="fairlens_part1.html">1: Overview</a>
+  <a href="fairlens_part2.html">2: Solution & Flow</a>
+  <a href="fairlens_part3.html">3: Features & Tech</a>
+  <a href="fairlens_part4.html">4: Competition & Win</a>
+</div>
+
+<!-- COVER -->
+<div class="cover">
+  <div>
+    <div style="display:inline-block;padding:.45rem 1.2rem;border-radius:50px;border:1px solid rgba(99,102,241,.5);background:rgba(99,102,241,.12);color:#a5b4fc;font-size:13px;font-weight:700;margin-bottom:1.75rem">&#9673; Google Solution Challenge 2026</div>
+    <h1>FairLens AI Auditor</h1>
+    <p>The world's first no-code, full-stack AI bias auditing platform — detect, explain, and fix algorithmic discrimination in minutes.</p>
+    <div>
+      <span class="tag">&#127919; AI for Social Good</span>
+      <span class="tag">&#9878; Regulatory Compliance</span>
+      <span class="tag">&#128200; Google Gemini Powered</span>
+      <span class="tag">&#128203; PDF Audit Reports</span>
+      <span class="tag">&#128272; EU AI Act Ready</span>
+    </div>
+    <div class="stats-row">
+      <div><span class="stat-num">3</span><div class="stat-lbl">Bias Metrics</div></div>
+      <div><span class="stat-num">20+</span><div class="stat-lbl">API Keys Pooled</div></div>
+      <div><span class="stat-num">3</span><div class="stat-lbl">Legal Frameworks</div></div>
+      <div><span class="stat-num">0</span><div class="stat-lbl">Lines of Code Needed</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<!-- EXECUTIVE SUMMARY -->
+<div class="section">
+  <div class="label">Section 01</div>
+  <h2>Executive Summary</h2>
+  <p>FairLens is a production-ready web platform that allows <strong>any organization — without ML expertise</strong> — to upload a dataset, automatically detect algorithmic discrimination, receive Gemini AI explanations in plain English, check regulatory compliance, and download a professional PDF audit report.</p>
+  <div class="callout"><strong>Core Idea:</strong> Every AI system making decisions about people — loans, hiring, healthcare, criminal justice — can discriminate. FairLens makes it dead simple to find and fix that discrimination before it causes real harm or legal liability.</div>
+  <div class="g3">
+    <div class="card card-b"><h3 style="color:#1d4ed8">&#128269; Detect</h3><p style="color:#1e40af;font-size:13px;margin:0">Upload any CSV. Get DPD, EOD, DIR + Cramér's V bias scores across all sensitive attributes in seconds.</p></div>
+    <div class="card card-o"><h3 style="color:#c2410c">&#129302; Explain</h3><p style="color:#9a3412;font-size:13px;margin:0">Google Gemini 2.5 Flash translates complex fairness metrics into plain English any decision-maker can understand.</p></div>
+    <div class="card card-g"><h3 style="color:#15803d">&#128200; Fix</h3><p style="color:#166534;font-size:13px;margin:0">Prioritized remediation steps, compliance status, What-If simulator, and downloadable PDF for legal teams.</p></div>
+  </div>
+</div>
+
+<!-- PROBLEM STATEMENT -->
+<div class="section pb">
+  <div class="label">Section 02</div>
+  <h2>The Problem: AI Discrimination is a Global Crisis</h2>
+  <div class="callout callout-red"><strong>Critical Reality:</strong> AI systems make life-altering decisions for billions of people — yet 87% of organizations have no process to test if their AI is fair. This isn't a hypothetical risk. It's happening right now.</div>
+
+  <div class="g2" style="margin-bottom:1.5rem">
+    <div>
+      <h3>Real-World Cases of Proven AI Bias</h3>
+      <div class="case"><div class="case-icon" style="background:#fee2e2">&#9878;</div><div><strong>COMPAS Criminal Justice Tool</strong><br><span style="font-size:13px;color:#64748b">Black defendants were 2× more likely to be falsely flagged as high recidivism risk than white defendants. Used in 1,000s of US courtrooms daily.</span></div></div>
+      <div class="case"><div class="case-icon" style="background:#fff7ed">&#128188;</div><div><strong>Amazon Hiring AI (2018)</strong><br><span style="font-size:13px;color:#64748b">Systematically downgraded resumes from women. Amazon scrapped it after years of discriminatory use. Cause: biased historical training data.</span></div></div>
+      <div class="case"><div class="case-icon" style="background:#eff6ff">&#127968;</div><div><strong>Healthcare Risk Scoring</strong><br><span style="font-size:13px;color:#64748b">Black patients assigned lower risk scores, denying them care. Affected 200M+ patients. Algorithm used "cost" as proxy for "need."</span></div></div>
+      <div class="case"><div class="case-icon" style="background:#f0fdf4">&#128176;</div><div><strong>Loan & Credit Scoring</strong><br><span style="font-size:13px;color:#64748b">Gender and race bias in credit AI leads to discriminatory lending — violating EEOC, Equal Credit Opportunity Act, and EU AI Act.</span></div></div>
+    </div>
+    <div>
+      <h3>The Scale of the Crisis</h3>
+      <div class="card" style="margin-bottom:.75rem"><div class="metric"><span class="big-num" style="color:#dc2626">$96B</span><div class="big-lbl">Annual economic cost of algorithmic discrimination (McKinsey 2024)</div></div></div>
+      <div class="card" style="margin-bottom:.75rem"><div class="metric"><span class="big-num" style="color:#d97706">87%</span><div class="big-lbl">Organizations with no AI bias testing process in place</div></div></div>
+      <div class="card" style="margin-bottom:.75rem"><div class="metric"><span class="big-num" style="color:#2563eb">€30M</span><div class="big-lbl">EU AI Act max fine for non-compliance with fairness rules (2026 enforcement)</div></div></div>
+      <div class="card"><div class="metric"><span class="big-num" style="color:#7c3aed">1 in 3</span><div class="big-lbl">AI systems show measurable discrimination in independent audits</div></div></div>
+    </div>
+  </div>
+
+  <h3>Why Current Solutions Completely Fail</h3>
+  <p>IBM AI Fairness 360, Google What-If Tool, and Microsoft Fairlearn are powerful — but they are Python libraries and CLI tools. They require a data scientist to use them. They produce raw numbers with zero plain-English explanation. They generate no PDF report, no compliance check, and no remediation plan. <strong>They solve the wrong problem.</strong> The people who need bias audits — HR directors, legal teams, compliance officers, regulators — cannot use any of these tools.</p>
+  <div class="callout"><strong>The Real Gap:</strong> There is no production-ready web application that makes AI bias auditing accessible to non-technical stakeholders. FairLens fills this gap completely.</div>
+</div>
+
+<div class="pnav noprint">
+  <span style="color:#94a3b8;font-size:13px">Page 1 of 4</span>
+  <a class="btn" href="fairlens_part2.html">Next: Solution & Flow &rarr;</a>
+</div>
+</div>
+</body>
+</html>

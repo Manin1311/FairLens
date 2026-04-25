@@ -45,9 +45,10 @@ async def detect_columns(
 async def run_audit(
     file: UploadFile = File(...),
     name: str = Form(...),
-    sensitive_columns: str = Form(...),   # JSON string e.g. '["gender","age"]'
+    sensitive_columns: str = Form(...),
     target_column: str = Form(...),
     prediction_column: Optional[str] = Form(None),
+    language: str = Form("English"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -76,6 +77,7 @@ async def run_audit(
         prediction_column=prediction_column or "",
         overall_risk=analysis["overall_risk_level"],
         overall_score=analysis["overall_fairness_score"],
+        language=language,
         status="processing"
     )
     db.add(audit)
@@ -84,14 +86,15 @@ async def run_audit(
 
     # ── Call Gemini in PARALLEL (3x faster than sequential) ─────────────────
     try:
-        explanation, fixes, report_summary = await asyncio.gather(
-            gemini_service.explain_bias_findings(analysis, file.filename),
+        explanation_dict, fixes, report_summary = await asyncio.gather(
+            gemini_service.explain_bias_findings(analysis, file.filename, language),
             gemini_service.generate_fix_suggestions(analysis),
-            gemini_service.generate_report_summary(analysis, name),
+            gemini_service.generate_report_summary(analysis, name, language),
         )
         fixes_json = json.dumps(fixes)
+        explanation_str = json.dumps(explanation_dict)
     except Exception as e:
-        explanation = f"Gemini explanation unavailable: {str(e)}"
+        explanation_str = json.dumps({"tldr": f"Gemini unavailable: {str(e)[:80]}", "key_findings": [], "detailed_analysis": ""})
         fixes_json = "[]"
         report_summary = ""
 
@@ -99,7 +102,7 @@ async def run_audit(
     result = AuditResult(
         audit_id=audit.id,
         raw_analysis=json.dumps(analysis),
-        gemini_explanation=explanation,
+        gemini_explanation=explanation_str,
         fix_suggestions=fixes_json,
         report_summary=report_summary
     )
@@ -132,6 +135,11 @@ def get_audit(
 ):
     audit = _get_owned_audit(audit_id, current_user.id, db)
     result = audit.result
+    gemini_raw = result.gemini_explanation if result else "{}"
+    try:
+        gemini_data = json.loads(gemini_raw)
+    except Exception:
+        gemini_data = {"tldr": gemini_raw, "key_findings": [], "detailed_analysis": gemini_raw}
 
     return {
         "id": audit.id,
@@ -144,9 +152,11 @@ def get_audit(
         "overall_risk": audit.overall_risk,
         "overall_score": audit.overall_score,
         "status": audit.status,
+        "is_public": audit.is_public,
+        "language": audit.language,
         "created_at": audit.created_at,
         "raw_analysis": json.loads(result.raw_analysis) if result else None,
-        "gemini_explanation": result.gemini_explanation if result else None,
+        "gemini_explanation": gemini_data,
         "fix_suggestions": json.loads(result.fix_suggestions) if result else [],
         "report_summary": result.report_summary if result else "",
     }
@@ -162,10 +172,54 @@ async def chat_about_audit(
     audit = _get_owned_audit(payload.audit_id, current_user.id, db)
     if not audit.result:
         raise HTTPException(status_code=404, detail="Audit results not found")
-
     analysis = json.loads(audit.result.raw_analysis)
     answer = await gemini_service.answer_question(payload.question, analysis)
     return ChatResponse(answer=answer)
+
+
+# ─── Toggle Public Sharing ────────────────────────────────────────────────────
+@router.patch("/{audit_id}/share")
+def toggle_share(audit_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    audit = _get_owned_audit(audit_id, current_user.id, db)
+    audit.is_public = not audit.is_public
+    db.commit()
+    return {"is_public": audit.is_public, "share_url": f"/audit/public/{audit.id}" if audit.is_public else None}
+
+
+# ─── Public Audit (no auth) ───────────────────────────────────────────────────
+@router.get("/public/{audit_id}")
+def get_public_audit(audit_id: int, db: Session = Depends(get_db)):
+    audit = db.query(Audit).filter(Audit.id == audit_id, Audit.is_public == True).first()
+    if not audit:
+        raise HTTPException(status_code=404, detail="Audit not found or not public")
+    result = audit.result
+    gemini_raw = result.gemini_explanation if result else "{}"
+    try:
+        gemini_data = json.loads(gemini_raw)
+    except Exception:
+        gemini_data = {"tldr": gemini_raw, "key_findings": [], "detailed_analysis": gemini_raw}
+    return {
+        "id": audit.id, "name": audit.name, "dataset_name": audit.dataset_name,
+        "total_rows": audit.total_rows, "overall_risk": audit.overall_risk,
+        "overall_score": audit.overall_score, "created_at": audit.created_at,
+        "raw_analysis": json.loads(result.raw_analysis) if result else None,
+        "gemini_explanation": gemini_data,
+        "fix_suggestions": json.loads(result.fix_suggestions) if result else [],
+    }
+
+
+# ─── Re-explain in Different Language ────────────────────────────────────────
+@router.post("/{audit_id}/re-explain")
+async def re_explain(audit_id: int, language: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    audit = _get_owned_audit(audit_id, current_user.id, db)
+    if not audit.result:
+        raise HTTPException(status_code=404, detail="Audit results not found")
+    analysis = json.loads(audit.result.raw_analysis)
+    explanation_dict = await gemini_service.regenerate_explanation(analysis, language, audit.dataset_name)
+    audit.language = language
+    audit.result.gemini_explanation = json.dumps(explanation_dict)
+    db.commit()
+    return {"gemini_explanation": explanation_dict, "language": language}
 
 
 # ─── Delete Audit ─────────────────────────────────────────────────────────────

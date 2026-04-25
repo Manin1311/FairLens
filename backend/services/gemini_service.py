@@ -85,28 +85,57 @@ def _clean_json(text: str) -> str:
 
 # ─── AI Functions ─────────────────────────────────────────────────────────────
 
-async def explain_bias_findings(analysis_results: dict, dataset_context: str = "") -> str:
-    """Generate a plain-English explanation of bias findings."""
+async def explain_bias_findings(analysis_results: dict, dataset_context: str = "", language: str = "English") -> dict:
+    """Generate structured bias explanation. Returns dict with tldr, key_findings, etc."""
+    lang_instruction = f"Write your entire response in {language}." if language != "English" else ""
     prompt = f"""
-You are an AI fairness expert explaining bias detection results to a non-technical organization manager.
+You are an AI fairness expert. Explain bias detection results to a non-technical manager.
+{lang_instruction}
 
 Analysis Results:
 {json.dumps(analysis_results, indent=2)}
 
-Dataset Context: {dataset_context if dataset_context else "General decision-making dataset (hiring, loans, or similar)"}
+Dataset Context: {dataset_context if dataset_context else "Decision-making dataset (hiring, loans, or similar)"}
 
-Write a clear, impactful explanation (300-400 words) that:
-1. Opens with the overall verdict: Is this AI system fair or not? (be direct)
-2. Explains what each metric found means in real-world human terms (not ML jargon)
-3. Describes who is being disadvantaged and by how much
-4. States the real-world consequences if this system is deployed
-5. Closes with urgency appropriate to the risk level
+Return ONLY a valid JSON object with this exact structure:
+{{
+  "tldr": "One clear sentence verdict — is this AI fair or not? (max 20 words)",
+  "risk_emoji": "single emoji representing the risk level",
+  "key_findings": [
+    "Finding 1 in plain English with specific numbers",
+    "Finding 2 in plain English with specific numbers",
+    "Finding 3 in plain English with specific numbers"
+  ],
+  "who_is_affected": "Specific group(s) being disadvantaged and by how much",
+  "real_world_consequence": "What happens to real people if this AI is deployed",
+  "urgency": "What the organization must do immediately (1-2 sentences)",
+  "detailed_analysis": "2-3 paragraph deeper explanation for those who want more detail"
+}}
 
-Use plain, powerful language. Make it feel real — these are decisions about people's lives.
-Do NOT use bullet points — write in flowing paragraphs.
+Be direct, human, and powerful. Use specific numbers. No jargon. Return ONLY JSON.
 """
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, _generate_with_retry, prompt)
+    text = await loop.run_in_executor(None, _generate_with_retry, prompt)
+    cleaned = _clean_json(text)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        # Fallback structured response
+        overall = analysis_results.get("overall_risk_level", "UNKNOWN")
+        score = analysis_results.get("overall_fairness_score", 0)
+        return {
+            "tldr": f"This AI system has {overall} bias risk with a fairness score of {score}/100.",
+            "risk_emoji": "🔴" if overall == "HIGH" else "🟡" if overall == "MEDIUM" else "🟢",
+            "key_findings": [
+                f"Overall fairness score: {score}/100",
+                f"Risk level: {overall}",
+                "Detailed metric analysis available in the table above."
+            ],
+            "who_is_affected": "See per-attribute analysis for specific disadvantaged groups.",
+            "real_world_consequence": "Biased AI systems can cause unfair outcomes for protected groups.",
+            "urgency": "Review the recommended fixes below and implement them before deployment.",
+            "detailed_analysis": ""
+        }
 
 
 async def generate_fix_suggestions(analysis_results: dict) -> list:
@@ -149,10 +178,11 @@ Return ONLY valid JSON array, nothing else.
         ]
 
 
-async def generate_report_summary(analysis_results: dict, audit_name: str) -> str:
+async def generate_report_summary(analysis_results: dict, audit_name: str, language: str = "English") -> str:
     """Generate a professional executive summary for the PDF report."""
+    lang_instruction = f"Write in {language}." if language != "English" else ""
     prompt = f"""
-Write a professional executive summary for an AI bias audit report.
+Write a professional executive summary for an AI bias audit report. {lang_instruction}
 
 Audit Name: {audit_name}
 Analysis Results: {json.dumps(analysis_results, indent=2)}
@@ -167,6 +197,11 @@ Do not use headers — just 3 clean paragraphs.
 """
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, _generate_with_retry, prompt)
+
+
+async def regenerate_explanation(analysis_results: dict, language: str, dataset_context: str = "") -> dict:
+    """Re-generate explanation in a different language."""
+    return await explain_bias_findings(analysis_results, dataset_context, language)
 
 
 async def answer_question(question: str, analysis_results: dict) -> str:

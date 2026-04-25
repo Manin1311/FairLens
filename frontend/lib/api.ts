@@ -57,13 +57,15 @@ export const auditAPI = {
     name: string,
     sensitiveColumns: string[],
     targetColumn: string,
-    predictionColumn?: string
+    predictionColumn?: string,
+    language: string = "English"
   ) => {
     const form = new FormData();
     form.append("file", file);
     form.append("name", name);
     form.append("sensitive_columns", JSON.stringify(sensitiveColumns));
     form.append("target_column", targetColumn);
+    form.append("language", language);
     if (predictionColumn) form.append("prediction_column", predictionColumn);
     return api.post("/api/audit/run", form, {
       headers: { "Content-Type": "multipart/form-data" },
@@ -75,6 +77,10 @@ export const auditAPI = {
     api.post("/api/audit/chat", { audit_id: auditId, question }),
   delete: (id: number) => api.delete(`/api/audit/${id}`),
   runDemo: (dataset: string) => api.post(`/api/audit/demo/${dataset}`),
+  reExplain: (id: number, language: string) =>
+    api.post(`/api/audit/${id}/re-explain?language=${encodeURIComponent(language)}`),
+  toggleShare: (id: number) => api.patch(`/api/audit/${id}/share`),
+  getPublic: (id: number) => api.get(`/api/audit/public/${id}`),
 };
 
 // ─── Report ───────────────────────────────────────────────────────────────────

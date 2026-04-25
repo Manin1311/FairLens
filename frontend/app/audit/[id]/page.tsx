@@ -9,7 +9,7 @@ import {
 import {
   ShieldCheck, AlertTriangle, CheckCircle2, FileText,
   ChevronLeft, MessageSquare, Send, Loader2, BarChart3, Zap,
-  XCircle, Scale, Users, Globe, Info, TrendingUp, Wand2
+  XCircle, Scale, Users, Globe, Info, TrendingUp, Wand2, Share2, Copy, Check
 } from "lucide-react";
 import { auditAPI, reportAPI } from "@/lib/api";
 
@@ -337,6 +337,43 @@ export default function AuditResultPage() {
     try { await reportAPI.downloadPDF(Number(id)); } finally { setPdfLoading(false); }
   };
 
+  // ── Language re-explain ─────────────────────────────────────────────────────
+  const [language, setLanguage] = useState("English");
+  const [langLoading, setLangLoading] = useState(false);
+  const [geminiData, setGeminiData] = useState<any>(null);
+  const [showDetail, setShowDetail] = useState(false);
+
+  useEffect(() => {
+    if (audit?.gemini_explanation) setGeminiData(audit.gemini_explanation);
+  }, [audit]);
+
+  const handleLanguageChange = async (lang: string) => {
+    setLanguage(lang);
+    if (lang === (audit?.language || "English")) return;
+    setLangLoading(true);
+    try {
+      const res = await auditAPI.reExplain(Number(id), lang);
+      setGeminiData(res.data.gemini_explanation);
+    } catch { /* keep existing */ }
+    finally { setLangLoading(false); }
+  };
+
+  // ── Share toggle ─────────────────────────────────────────────────────────────
+  const [isPublic, setIsPublic] = useState(false);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => { if (audit?.is_public != null) setIsPublic(audit.is_public); }, [audit]);
+
+  const handleShare = async () => {
+    try {
+      const res = await auditAPI.toggleShare(Number(id));
+      setIsPublic(res.data.is_public);
+      if (res.data.is_public) {
+        await navigator.clipboard.writeText(`${window.location.origin}/audit/public/${id}`);
+        setCopied(true); setTimeout(() => setCopied(false), 3000);
+      }
+    } catch { /* ignore */ }
+  };
+
   if (loading) return (
     <div className="min-h-screen hero-bg flex items-center justify-center">
       <div className="text-center">
@@ -380,11 +417,32 @@ export default function AuditResultPage() {
             <span className="text-slate-700">/</span>
             <span className="text-white text-sm font-medium truncate max-w-xs">{audit.name}</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Language selector */}
+            <select
+              value={language}
+              onChange={(e) => handleLanguageChange(e.target.value)}
+              disabled={langLoading}
+              className="text-xs px-2 py-1.5 rounded-lg border border-white/10 bg-white/5 text-slate-300 cursor-pointer"
+              style={{ outline: "none" }}>
+              {["English","Hindi","Spanish","French","Arabic","Portuguese","Bengali","German","Japanese","Chinese"].map(l => (
+                <option key={l} value={l} style={{ background: "#0f172a" }}>{l}</option>
+              ))}
+            </select>
+            {langLoading && <Loader2 size={14} className="text-blue-400 animate-spin" />}
+            {/* Share */}
+            <button onClick={handleShare}
+              className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-all ${
+                isPublic ? "bg-green-500/20 border-green-500/40 text-green-400" : "bg-white/5 border-white/10 text-slate-400 hover:border-white/20"
+              }`}>
+              {copied ? <Check size={13}/> : <Share2 size={13}/>}
+              {copied ? "Copied!" : isPublic ? "Shared" : "Share"}
+            </button>
+            {/* PDF */}
             <button onClick={downloadPDF} disabled={pdfLoading}
               className="btn-ghost text-sm flex items-center gap-2">
               {pdfLoading ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
-              Download PDF
+              PDF
             </button>
           </div>
         </div>
@@ -593,20 +651,87 @@ export default function AuditResultPage() {
               </div>
             )}
 
-            {/* Gemini Explanation */}
-            {audit.gemini_explanation && (
-              <div className="glass p-6">
-                <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <Zap size={20} className="text-yellow-400" /> Gemini AI Analysis
-                </h2>
-                <div className="prose prose-sm max-w-none">
-                  {audit.gemini_explanation.split("\n\n").map((para: string, i: number) =>
-                    para.trim() && (
-                      <p key={i} className="text-slate-300 leading-relaxed mb-4 last:mb-0">{para.trim()}</p>
-                    )
-                  )}
+            {/* Gemini Explanation — structured card */}
+            {geminiData && (
+              <motion.div className="glass p-6"
+                initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                    <Zap size={18} className="text-yellow-400" /> Gemini AI Analysis
+                    {language !== "English" && <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-400">{language}</span>}
+                  </h2>
                 </div>
-              </div>
+
+                {/* TL;DR verdict card */}
+                {geminiData.tldr && (
+                  <div className="rounded-xl p-4 mb-4 flex items-start gap-3"
+                    style={{ background: "rgba(250,204,21,0.08)", border: "1px solid rgba(250,204,21,0.2)" }}>
+                    <span className="text-2xl flex-shrink-0">{geminiData.risk_emoji || "⚡"}</span>
+                    <div>
+                      <div className="text-xs font-bold text-yellow-400 mb-1 uppercase tracking-wider">Verdict</div>
+                      <p className="text-sm font-semibold text-white leading-relaxed">{geminiData.tldr}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Key findings */}
+                {geminiData.key_findings?.length > 0 && (
+                  <div className="mb-4">
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Key Findings</div>
+                    <ul className="space-y-2">
+                      {geminiData.key_findings.map((f: string, i: number) => (
+                        <li key={i} className="flex items-start gap-2.5 text-sm text-slate-300">
+                          <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">{i+1}</span>
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Who is affected + consequence in 2-col */}
+                {(geminiData.who_is_affected || geminiData.real_world_consequence) && (
+                  <div className="grid md:grid-cols-2 gap-3 mb-4">
+                    {geminiData.who_is_affected && (
+                      <div className="rounded-xl p-3" style={{ background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                        <div className="text-xs font-bold text-red-400 mb-1">Who Is Affected</div>
+                        <p className="text-xs text-slate-300 leading-relaxed">{geminiData.who_is_affected}</p>
+                      </div>
+                    )}
+                    {geminiData.real_world_consequence && (
+                      <div className="rounded-xl p-3" style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.2)" }}>
+                        <div className="text-xs font-bold text-yellow-400 mb-1">Real-World Consequence</div>
+                        <p className="text-xs text-slate-300 leading-relaxed">{geminiData.real_world_consequence}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Urgency */}
+                {geminiData.urgency && (
+                  <div className="rounded-xl p-3 mb-4" style={{ background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.2)" }}>
+                    <div className="text-xs font-bold text-blue-400 mb-1">Action Required</div>
+                    <p className="text-xs text-slate-300 leading-relaxed">{geminiData.urgency}</p>
+                  </div>
+                )}
+
+                {/* Expandable detailed analysis */}
+                {geminiData.detailed_analysis && (
+                  <div>
+                    <button onClick={() => setShowDetail(d => !d)}
+                      className="text-xs text-slate-500 hover:text-slate-300 flex items-center gap-1.5 transition-colors">
+                      <Info size={12}/> {showDetail ? "Hide" : "Show"} detailed analysis
+                    </button>
+                    {showDetail && (
+                      <div className="mt-3 pt-3 border-t border-white/5 space-y-3">
+                        {geminiData.detailed_analysis.split("\n\n").map((p: string, i: number) =>
+                          p.trim() && <p key={i} className="text-sm text-slate-400 leading-relaxed">{p.trim()}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </motion.div>
             )}
           </div>
 

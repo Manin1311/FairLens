@@ -53,6 +53,8 @@ class Audit(Base):
     overall_risk = Column(String, default="UNKNOWN")
     overall_score = Column(Integer, default=0)
     status = Column(String, default="pending")        # pending | complete | error
+    is_public = Column(Boolean, default=False)         # shareable link
+    language = Column(String, default="English")       # explanation language
     created_at = Column(DateTime, default=datetime.utcnow)
 
     owner = relationship("User", back_populates="audits")
