@@ -341,20 +341,70 @@ function DemoContent() {
             </div>
           )}
 
-          {/* Full Gemini explanation */}
-          {result.gemini_explanation && (
-            <div className="glass p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Zap size={18} className="text-yellow-400"/>
-                <h3 className="font-semibold text-white">Gemini AI Full Analysis</h3>
-              </div>
-              <div className="space-y-4">
-                {result.gemini_explanation.split("\n\n").map((para: string, i: number) =>
-                  para.trim() && <p key={i} className="text-sm text-slate-300 leading-relaxed">{para.trim()}</p>
+          {/* Full Gemini explanation — structured */}
+          {result.gemini_explanation && (() => {
+            const g = typeof result.gemini_explanation === "string"
+              ? JSON.parse(result.gemini_explanation)
+              : result.gemini_explanation;
+            return (
+              <div className="glass p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Zap size={18} className="text-yellow-400"/>
+                  <h3 className="font-semibold text-white">Gemini AI Analysis</h3>
+                </div>
+                {/* TL;DR */}
+                {g.tldr && (
+                  <div className="rounded-xl p-4 mb-4 flex items-start gap-3"
+                    style={{ background:"rgba(250,204,21,0.08)", border:"1px solid rgba(250,204,21,0.2)" }}>
+                    <span className="text-2xl flex-shrink-0">{g.risk_emoji || "⚡"}</span>
+                    <div>
+                      <div className="text-xs font-bold text-yellow-400 mb-1 uppercase tracking-wider">Verdict</div>
+                      <p className="text-sm font-semibold text-white leading-relaxed">{g.tldr}</p>
+                    </div>
+                  </div>
+                )}
+                {/* Key findings */}
+                {g.key_findings?.length > 0 && (
+                  <div className="mb-4">
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Key Findings</div>
+                    <ul className="space-y-2">
+                      {g.key_findings.map((f: string, i: number) => (
+                        <li key={i} className="flex items-start gap-2.5 text-sm text-slate-300">
+                          <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">{i+1}</span>
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {/* Who + consequence */}
+                {(g.who_is_affected || g.real_world_consequence) && (
+                  <div className="grid md:grid-cols-2 gap-3 mb-4">
+                    {g.who_is_affected && (
+                      <div className="rounded-xl p-3" style={{ background:"rgba(239,68,68,0.07)", border:"1px solid rgba(239,68,68,0.2)" }}>
+                        <div className="text-xs font-bold text-red-400 mb-1">Who Is Affected</div>
+                        <p className="text-xs text-slate-300 leading-relaxed">{g.who_is_affected}</p>
+                      </div>
+                    )}
+                    {g.real_world_consequence && (
+                      <div className="rounded-xl p-3" style={{ background:"rgba(245,158,11,0.07)", border:"1px solid rgba(245,158,11,0.2)" }}>
+                        <div className="text-xs font-bold text-yellow-400 mb-1">Real-World Consequence</div>
+                        <p className="text-xs text-slate-300 leading-relaxed">{g.real_world_consequence}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* Urgency */}
+                {g.urgency && (
+                  <div className="rounded-xl p-3" style={{ background:"rgba(59,130,246,0.07)", border:"1px solid rgba(59,130,246,0.2)" }}>
+                    <div className="text-xs font-bold text-blue-400 mb-1">Action Required</div>
+                    <p className="text-xs text-slate-300 leading-relaxed">{g.urgency}</p>
+                  </div>
                 )}
               </div>
-            </div>
-          )}
+            );
+          })()}
+
 
           {/* CTA */}
           <div className="glass p-8 text-center">
