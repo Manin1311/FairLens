@@ -4,8 +4,7 @@ import { motion } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, Tooltip, Cell, Legend
+  BarChart, Bar, XAxis, YAxis, Tooltip, Cell, ResponsiveContainer
 } from "recharts";
 import {
   ShieldCheck, AlertTriangle, CheckCircle2, FileText,
@@ -562,17 +561,35 @@ export default function AuditResultPage() {
               )}
             </div>
 
-            {/* Radar overview */}
-            {radarData.length > 1 && (
+            {/* Fairness Score Overview — bar chart (works with any number of attrs) */}
+            {radarData.length > 0 && (
               <div className="glass p-6">
                 <h2 className="text-lg font-semibold text-white mb-4">Fairness Score Overview</h2>
-                <ResponsiveContainer width="100%" height={240}>
-                  <RadarChart data={radarData}>
-                    <PolarGrid stroke="#1e293b" />
-                    <PolarAngleAxis dataKey="attribute" tick={{ fill: "#94a3b8", fontSize: 11 }} />
-                    <Radar name="Fairness Score" dataKey="score" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.2} />
-                  </RadarChart>
+                <ResponsiveContainer width="100%" height={Math.max(160, radarData.length * 56)}>
+                  <BarChart data={radarData} layout="vertical"
+                    margin={{ top: 4, right: 48, left: 8, bottom: 4 }}>
+                    <XAxis type="number" domain={[0, 100]} tick={{ fill: "#94a3b8", fontSize: 11 }}
+                      tickFormatter={(v) => `${v}`}/>
+                    <YAxis type="category" dataKey="attribute" width={80}
+                      tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                    <Tooltip
+                      contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, color: "#e2e8f0" }}
+                      formatter={(v: any) => [`${v}/100`, "Fairness Score"]}
+                    />
+                    <Bar dataKey="score" radius={[0, 6, 6, 0]} maxBarSize={28}>
+                      {radarData.map((d: any, i: number) => (
+                        <Cell key={i}
+                          fill={d.score >= 75 ? "#22c55e" : d.score >= 50 ? "#f59e0b" : "#ef4444"}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
                 </ResponsiveContainer>
+                <div className="flex items-center gap-5 mt-3 text-xs text-slate-500 justify-center">
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-green-500 inline-block"/>≥75 Low Risk</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-yellow-500 inline-block"/>50–74 Medium</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-500 inline-block"/>&lt;50 High Risk</span>
+                </div>
               </div>
             )}
 
