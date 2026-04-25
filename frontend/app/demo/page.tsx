@@ -227,9 +227,12 @@ function DemoContent() {
               <p className="text-slate-400 text-sm mb-3">
                 {analysis.total_rows?.toLocaleString()} rows · {analysis.columns_analyzed} attribute{analysis.columns_analyzed!==1?"s":""} analysed
               </p>
-              {result.gemini_explanation && (
-                <p className="text-slate-300 text-sm leading-relaxed">{result.gemini_explanation.split("\n\n")[0]}</p>
-              )}
+              {result.gemini_explanation && (() => {
+                const g = typeof result.gemini_explanation === "string"
+                  ? (() => { try { return JSON.parse(result.gemini_explanation); } catch { return { tldr: result.gemini_explanation }; }})()
+                  : result.gemini_explanation;
+                return g.tldr ? <p className="text-slate-300 text-sm leading-relaxed">{g.tldr}</p> : null;
+              })()}
             </div>
           </div>
 
