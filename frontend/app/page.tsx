@@ -114,7 +114,7 @@ export default function HomePage() {
           </motion.div>
 
           {/* Live Stats */}
-          <motion.div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-3xl mx-auto"
+          <motion.div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-3xl mx-auto"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}>
             {[
               { val: 83, suffix: "%", label: "of HR AI tools show gender bias", color: "#ef4444" },
@@ -129,6 +129,52 @@ export default function HomePage() {
                 <div className="text-xs text-slate-500 leading-tight">{s.label}</div>
               </div>
             ))}
+          </motion.div>
+
+          {/* Live Product Preview */}
+          <motion.div className="mt-16 max-w-3xl mx-auto"
+            initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7, duration: 0.6 }}>
+            <div className="text-xs text-slate-500 text-center mb-3 uppercase tracking-widest">↓ Live audit result preview</div>
+            <div className="glass p-5 rounded-2xl" style={{ border: "1px solid rgba(59,130,246,0.25)" }}>
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <div className="text-xs text-slate-500 mb-0.5">COMPAS Recidivism Dataset · 1,000 rows</div>
+                  <div className="font-bold text-white">Criminal Risk Scoring Audit</div>
+                </div>
+                <span className="px-3 py-1.5 rounded-full text-xs font-bold risk-high">HIGH RISK</span>
+              </div>
+              {/* Score + metrics row */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                {[
+                  { label: "Fairness Score", val: "56/100", color: "#f59e0b" },
+                  { label: "DPD (Race)", val: "0.309", color: "#ef4444" },
+                  { label: "DIR (Race)", val: "0.552", color: "#ef4444" },
+                  { label: "EU AI Act", val: "FAIL", color: "#ef4444" },
+                ].map(m => (
+                  <div key={m.label} className="rounded-xl p-3 text-center" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                    <div className="text-xs text-slate-500 mb-1">{m.label}</div>
+                    <div className="font-black text-sm" style={{ color: m.color }}>{m.val}</div>
+                  </div>
+                ))}
+              </div>
+              {/* Gemini verdict card */}
+              <div className="rounded-xl p-3 mb-3" style={{ background: "rgba(250,204,21,0.07)", border: "1px solid rgba(250,204,21,0.2)" }}>
+                <div className="text-xs font-bold text-yellow-400 mb-1">⚡ Gemini AI Verdict</div>
+                <p className="text-xs text-slate-300">This criminal risk system shows <strong>severe racial bias</strong> — Black defendants are flagged as high risk at twice the rate of white defendants with identical records.</p>
+              </div>
+              {/* Key findings */}
+              <div className="space-y-1.5">
+                {["Race drives 67% of all bias (Cramér's V)","Black group: 31% positive rate vs White: 68%","Fails EEOC 4/5 Rule — DIR 0.552 < 0.80 threshold"].map((f, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs text-slate-400">
+                    <span className="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold flex-shrink-0">{i+1}</span>{f}
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 text-center">
+                <Link href="/demo" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">Run this analysis yourself →</Link>
+              </div>
+            </div>
           </motion.div>
         </div>
       </section>
@@ -273,16 +319,19 @@ export default function HomePage() {
           </div>
           <div className="grid md:grid-cols-3 gap-5">
             {[
-              { icon: BarChart3, title: "3 Fairness Metrics", desc: "Demographic Parity Difference, Equalized Odds, Disparate Impact Ratio — the gold standard.", color: "#3b82f6", badge: "Industry Standard" },
-              { icon: Brain, title: "Gemini AI Explanations", desc: "Every finding explained in plain English. No data science degree required.", color: "#a78bfa", badge: "Powered by Gemini" },
-              { icon: Zap, title: "Ask Gemini Anything", desc: "Interactive AI chat on your results. 'Who is being disadvantaged?' Get instant answers.", color: "#f59e0b", badge: "Unique Feature" },
-              { icon: FileText, title: "PDF Audit Reports", desc: "Professional downloadable reports ready to share with executives and compliance teams.", color: "#22c55e", badge: "" },
-              { icon: Scale, title: "Compliance Check", desc: "EU AI Act, EEOC 4/5 Rule, ISO 42001. Know your legal standing before regulators do.", color: "#ef4444", badge: "New" },
-              { icon: Globe, title: "No-Login Demo", desc: "Try real bias analysis on COMPAS, Adult Income, and German Credit datasets instantly.", color: "#06b6d4", badge: "" },
+              { icon: BarChart3, title: "4 Fairness Metrics", desc: "DPD, EOD, DIR + Cramér's V bias attribution — gold standard metrics that tell you WHAT and WHY.", color: "#3b82f6", badge: "Industry Standard" },
+              { icon: Brain, title: "Gemini AI Explanations", desc: "Every finding explained in plain English with TL;DR verdict, key findings list, and expandable detail.", color: "#a78bfa", badge: "Powered by Gemini" },
+              { icon: Globe, title: "10 Language Support", desc: "Re-generate your entire audit explanation in Hindi, Spanish, French, Arabic, Portuguese, Bengali and more.", color: "#06b6d4", badge: "New" },
+              { icon: FileText, title: "PDF Audit Reports", desc: "Professional downloadable reports ready for executives, compliance teams, and regulatory submission.", color: "#22c55e", badge: "" },
+              { icon: Scale, title: "Legal Compliance", desc: "EU AI Act, EEOC 4/5 Rule, ISO 42001. Know your legal standing before regulators do.", color: "#ef4444", badge: "" },
+              { icon: Zap, title: "Ask Gemini Anything", desc: "Interactive AI chat on your results. 'Who is disadvantaged?' 'What is my legal risk?' Instant answers.", color: "#f59e0b", badge: "" },
+              { icon: TrendingUp, title: "What-If Simulator", desc: "Simulate removing any attribute and see your score improve in real-time. Plan your mitigation strategy.", color: "#a78bfa", badge: "" },
+              { icon: Users, title: "Shareable Audit Links", desc: "Make any audit public with one click. Share your results with anyone — no account needed to view.", color: "#22c55e", badge: "New" },
+              { icon: Lock, title: "No-Login Demo", desc: "Try real bias analysis on COMPAS, Adult Income, and German Credit datasets instantly — zero friction.", color: "#64748b", badge: "" },
             ].map((f, i) => (
               <motion.div key={f.title} className="glass p-6 group hover:border-opacity-50 transition-all duration-300"
                 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }} transition={{ delay: i * 0.08 }}
+                viewport={{ once: true }} transition={{ delay: i * 0.06 }}
                 whileHover={{ y: -4 }}
                 style={{ borderColor: "var(--border)" }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = `${f.color}40`)}

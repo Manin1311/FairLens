@@ -163,11 +163,16 @@ export default function DashboardPage() {
 
           {/* Mobile top bar */}
           <div className="flex items-center justify-between mb-6 md:mb-0">
-            <button className="md:hidden p-2 rounded-lg" style={{ color: "var(--text-secondary)" }}
-              onClick={() => setSideOpen(true)}>
-              <Menu size={22} />
-            </button>
-            {/* Desktop header title (mobile title is part of row below) */}
+            <div className="flex items-center gap-3 md:hidden">
+              <button className="p-2 rounded-lg" style={{ color: "var(--text-secondary)" }}
+                onClick={() => setSideOpen(true)}>
+                <Menu size={22} />
+              </button>
+              <div className="flex items-center gap-1.5">
+                <ShieldCheck className="text-blue-500" size={18} />
+                <span className="font-bold text-sm gradient-text-blue">FairLens</span>
+              </div>
+            </div>
             <div className="hidden md:block" /> {/* spacer */}
             <div className="flex items-center gap-2">
               <button onClick={toggleTheme}
