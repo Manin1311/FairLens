@@ -10,6 +10,35 @@ load_dotenv()
 # Create all DB tables on startup
 Base.metadata.create_all(bind=engine)
 
+# ── Safe column migrations (handles existing DBs without alembic) ───────────
+def run_migrations():
+    """Add new columns to existing tables without breaking existing data."""
+    migrations = [
+        # audits table — new columns added in v1.1
+        ("audits", "is_public",  "BOOLEAN DEFAULT FALSE"),
+        ("audits", "language",   "VARCHAR DEFAULT 'English'"),
+    ]
+    with engine.connect() as conn:
+        for table, column, col_def in migrations:
+            try:
+                conn.execute(
+                    __import__("sqlalchemy").text(
+                        f"ALTER TABLE {table} ADD COLUMN {column} {col_def}"
+                    )
+                )
+                conn.commit()
+                print(f"[Migration] Added column {table}.{column}")
+            except Exception as e:
+                # Column already exists — this is expected on subsequent restarts
+                err = str(e).lower()
+                if "duplicate" in err or "already exists" in err or "already has column" in err:
+                    pass  # Normal — column was added in a previous run
+                else:
+                    print(f"[Migration] Warning for {table}.{column}: {e}")
+
+run_migrations()
+
+
 app = FastAPI(
     title="FairLens API",
     description="AI Bias Detection & Auditing Platform — Making AI Fair for Everyone",
