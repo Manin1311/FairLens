@@ -428,7 +428,7 @@ export default function DemoPage() {
   useEffect(() => { setLoggedIn(!!localStorage.getItem("fairlens_token")); }, []);
 
   return (
-    <div className="min-h-screen hero-bg">
+    <div className="min-h-screen hero-bg overflow-x-hidden">
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/5 backdrop-blur-xl bg-gray-950/80">
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">

@@ -406,7 +406,7 @@ export default function AuditResultPage() {
   const riskColor = RISK_COLOR[analysis.overall_risk_level] || "#94a3b8";
 
   return (
-    <div className="min-h-screen bg-gray-950">
+    <div className="min-h-screen bg-gray-950 overflow-x-hidden">
       {/* Top bar */}
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/5 backdrop-blur-xl bg-gray-950/80">
         {/* Row 1: breadcrumb + actions */}
