@@ -6,7 +6,7 @@ import {
   ShieldCheck, BarChart3, Zap, FileText,
   ArrowRight, CheckCircle2, Brain, Scale,
   AlertTriangle, TrendingUp, Users, Globe,
-  Lock, ChevronRight
+  Lock, ChevronRight, Sun, Moon
 } from "lucide-react";
 
 /* ─── Animated Counter ───────────────────────────────────────────── */
@@ -55,7 +55,22 @@ function ScoreRing({ score, color, label }: { score: number; color: string; labe
 
 export default function HomePage() {
   const [loggedIn, setLoggedIn] = useState(false);
-  useEffect(() => { setLoggedIn(!!localStorage.getItem("fairlens_token")); }, []);
+  const [isDark, setIsDark] = useState(true);
+
+  useEffect(() => {
+    setLoggedIn(!!localStorage.getItem("fairlens_token"));
+    const saved = localStorage.getItem("fairlens_theme");
+    const dark = saved !== "light";
+    setIsDark(dark);
+    document.documentElement.classList.toggle("light", !dark);
+  }, []);
+
+  const toggleTheme = () => {
+    const newDark = !isDark;
+    setIsDark(newDark);
+    document.documentElement.classList.toggle("light", !newDark);
+    localStorage.setItem("fairlens_theme", newDark ? "dark" : "light");
+  };
   return (
     <div className="hero-bg min-h-screen overflow-x-hidden">
 
@@ -73,6 +88,12 @@ export default function HomePage() {
             <a href="#compliance" className="hover:text-white transition-colors">Compliance</a>
           </div>
           <div className="flex items-center gap-3">
+            <button onClick={toggleTheme}
+              className="p-2 rounded-xl transition-all border"
+              style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-secondary)" }}
+              title={isDark ? "Switch to Light" : "Switch to Dark"}>
+              {isDark ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
             {loggedIn ? (
               <Link href="/dashboard" className="btn-primary text-sm">Dashboard</Link>
             ) : (

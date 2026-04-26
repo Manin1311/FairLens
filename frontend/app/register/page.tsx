@@ -3,7 +3,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ShieldCheck, Mail, Lock, User, Building2, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { ShieldCheck, Mail, Lock, User, Building2, Eye, EyeOff, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { authAPI } from "@/lib/api";
 
@@ -28,6 +28,19 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Password validation rules
+  const passChecks = [
+    { label: "8+ characters", pass: form.password.length >= 8 },
+    { label: "Uppercase letter", pass: /[A-Z]/.test(form.password) },
+    { label: "Lowercase letter", pass: /[a-z]/.test(form.password) },
+    { label: "Number", pass: /[0-9]/.test(form.password) },
+    { label: "Special character (!@#$...)", pass: /[^A-Za-z0-9]/.test(form.password) },
+  ];
+  const passStrength = passChecks.filter(c => c.pass).length;
+  const passValid = passStrength >= 4; // need at least 4 of 5
+  const strengthLabel = passStrength <= 1 ? "Weak" : passStrength <= 2 ? "Weak" : passStrength <= 3 ? "Medium" : passStrength <= 4 ? "Strong" : "Very Strong";
+  const strengthColor = passStrength <= 2 ? "#ef4444" : passStrength <= 3 ? "#f59e0b" : "#22c55e";
 
   const handleGoogleSignup = () => {
     if (typeof window === "undefined" || !(window as any).google) {
@@ -63,7 +76,7 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (form.password.length < 6) { setError("Password must be at least 6 characters"); return; }
+    if (!passValid) { setError("Password must meet at least 4 of 5 requirements below"); return; }
     setLoading(true);
     try {
       await register(form);
@@ -158,13 +171,35 @@ export default function RegisterPage() {
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" size={16} style={{ color: "var(--text-muted)" }} />
                 <input id="reg-password" type={showPass ? "text" : "password"} required value={form.password}
-                  onChange={set("password")} placeholder="Min. 6 characters" className="input-field input-icon-both" />
+                  onChange={set("password")} placeholder="Create a strong password" className="input-field input-icon-both" />
                 <button type="button" onClick={() => setShowPass(!showPass)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
                   style={{ color: "var(--text-muted)" }}>
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              {/* Strength bar */}
+              {form.password.length > 0 && (
+                <div className="mt-2.5 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 flex gap-1">
+                      {[1,2,3,4,5].map(i => (
+                        <div key={i} className="h-1.5 flex-1 rounded-full transition-all duration-300"
+                          style={{ background: i <= passStrength ? strengthColor : "var(--border)" }} />
+                      ))}
+                    </div>
+                    <span className="text-xs font-semibold" style={{ color: strengthColor }}>{strengthLabel}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                    {passChecks.map(c => (
+                      <div key={c.label} className="flex items-center gap-1.5 text-xs" style={{ color: c.pass ? "#22c55e" : "var(--text-muted)" }}>
+                        {c.pass ? <CheckCircle2 size={12} /> : <span className="w-3 h-3 rounded-full border flex-shrink-0" style={{ borderColor: "var(--border)" }} />}
+                        {c.label}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <button id="reg-submit" type="submit" disabled={loading}
