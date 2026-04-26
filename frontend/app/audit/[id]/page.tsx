@@ -409,21 +409,22 @@ export default function AuditResultPage() {
     <div className="min-h-screen bg-gray-950">
       {/* Top bar */}
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/5 backdrop-blur-xl bg-gray-950/80">
-        <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="text-slate-500 hover:text-white transition-colors flex items-center gap-1 text-sm">
-              <ChevronLeft size={16} /> Dashboard
+        {/* Row 1: breadcrumb + actions */}
+        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <Link href="/dashboard" className="text-slate-500 hover:text-white transition-colors flex items-center gap-1 text-sm flex-shrink-0">
+              <ChevronLeft size={16} /> <span className="hidden sm:inline">Dashboard</span>
             </Link>
-            <span className="text-slate-700">/</span>
-            <span className="text-white text-sm font-medium truncate max-w-xs">{audit.name}</span>
+            <span className="text-slate-700 flex-shrink-0">/</span>
+            <span className="text-white text-sm font-medium truncate">{audit.name}</span>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Language selector */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Language selector — hidden on mobile */}
             <select
               value={language}
               onChange={(e) => handleLanguageChange(e.target.value)}
               disabled={langLoading}
-              className="text-xs px-2 py-1.5 rounded-lg border border-white/10 bg-white/5 text-slate-300 cursor-pointer"
+              className="hidden sm:block text-xs px-2 py-1.5 rounded-lg border border-white/10 bg-white/5 text-slate-300 cursor-pointer"
               style={{ outline: "none" }}>
               {["English","Hindi","Spanish","French","Arabic","Portuguese","Bengali","German","Japanese","Chinese"].map(l => (
                 <option key={l} value={l} style={{ background: "#0f172a" }}>{l}</option>
@@ -432,23 +433,36 @@ export default function AuditResultPage() {
             {langLoading && <Loader2 size={14} className="text-blue-400 animate-spin" />}
             {/* Share */}
             <button onClick={handleShare}
-              className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-all ${
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-all ${
                 isPublic ? "bg-green-500/20 border-green-500/40 text-green-400" : "bg-white/5 border-white/10 text-slate-400 hover:border-white/20"
               }`}>
               {copied ? <Check size={13}/> : <Share2 size={13}/>}
-              {copied ? "Copied!" : isPublic ? "Shared" : "Share"}
+              <span className="hidden xs:inline">{copied ? "Copied!" : isPublic ? "Shared" : "Share"}</span>
             </button>
             {/* PDF */}
             <button onClick={downloadPDF} disabled={pdfLoading}
-              className="btn-ghost text-sm flex items-center gap-2">
+              className="btn-ghost text-sm flex items-center gap-1.5">
               {pdfLoading ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
-              PDF
+              <span className="hidden xs:inline">PDF</span>
             </button>
           </div>
         </div>
+        {/* Mobile-only: language selector row */}
+        <div className="sm:hidden px-4 pb-2 flex items-center gap-2">
+          <select
+            value={language}
+            onChange={(e) => handleLanguageChange(e.target.value)}
+            disabled={langLoading}
+            className="text-xs px-2 py-1.5 rounded-lg border border-white/10 bg-white/5 text-slate-300 cursor-pointer flex-1"
+            style={{ outline: "none" }}>
+            {["English","Hindi","Spanish","French","Arabic","Portuguese","Bengali","German","Japanese","Chinese"].map(l => (
+              <option key={l} value={l} style={{ background: "#0f172a" }}>{l}</option>
+            ))}
+          </select>
+        </div>
       </nav>
 
-      <div className="pt-20 pb-12 px-6 max-w-7xl mx-auto">
+      <div className="pt-24 sm:pt-20 pb-12 px-4 sm:px-6 max-w-7xl mx-auto">
         {/* Risk Banner */}
         <motion.div className="mb-8 glass p-6 flex flex-col md:flex-row items-center gap-6"
           initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
