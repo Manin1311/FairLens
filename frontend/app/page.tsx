@@ -479,7 +479,6 @@ export default function HomePage() {
             <span className="font-bold text-white">FairLens</span>
             <span className="text-slate-600 text-sm ml-2">Making AI Fair for Everyone</span>
           </div>
-          <p className="text-slate-600 text-sm">Built with Google Gemini</p>
           <div className="flex items-center gap-5 text-sm text-slate-500">
             <Link href="/demo" className="hover:text-white transition-colors">Live Demo</Link>
             <Link href="/login" className="hover:text-white transition-colors">Sign In</Link>
