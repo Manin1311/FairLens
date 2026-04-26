@@ -167,7 +167,7 @@ npm run dev
 | http://localhost:3000/demo | Live demo (no login needed) |
 | http://localhost:3000/register | Create account |
 | http://localhost:3000/dashboard | Audit dashboard |
-| http://localhost:8000/docs | FastAPI interactive API docs |
+
 
 ---
 
