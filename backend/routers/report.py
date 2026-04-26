@@ -90,7 +90,7 @@ def _build_pdf(audit, analysis, explanation, summary, fixes, user) -> bytes:
     story.append(Paragraph(
         "Making AI Fair for Everyone  ·  Powered by Google Gemini",
         ParagraphStyle("tagline", fontSize=8,
-                       textColor=colors.HexColor("#94a3b8"), spaceAfter=6)
+                       textColor=colors.HexColor("#94a3b8"), spaceBefore=6, spaceAfter=8)
     ))
     story.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor("#1e40af")))
     story.append(Spacer(1, 0.4*cm))

@@ -441,6 +441,7 @@ export default function AuditResultPage() {
             </button>
             {/* PDF */}
             <button onClick={downloadPDF} disabled={pdfLoading}
+              title="Download PDF report"
               className="btn-ghost text-sm flex items-center gap-1.5">
               {pdfLoading ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
               <span className="hidden xs:inline">PDF</span>
@@ -615,7 +616,9 @@ export default function AuditResultPage() {
                               <XAxis dataKey="group" tick={{ fill: "#94a3b8", fontSize: 12 }} />
                               <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} domain={[0, 100]} />
                               <Tooltip
-                                contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, color: "#e2e8f0" }}
+                                contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8 }}
+                                itemStyle={{ color: "#e2e8f0" }}
+                                labelStyle={{ color: "#94a3b8", marginBottom: "4px" }}
                                 formatter={(v: any) => [`${v}%`]}
                               />
                               <Bar dataKey="positiveRate" name="Positive Rate %" radius={[6, 6, 0, 0]}>
@@ -645,7 +648,9 @@ export default function AuditResultPage() {
                     <YAxis type="category" dataKey="attribute" width={80}
                       tick={{ fill: "#94a3b8", fontSize: 12 }} />
                     <Tooltip
-                      contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, color: "#e2e8f0" }}
+                      contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8 }}
+                      itemStyle={{ color: "#e2e8f0" }}
+                      labelStyle={{ color: "#94a3b8", marginBottom: "4px" }}
                       formatter={(v: any) => [`${v}/100`, "Fairness Score"]}
                     />
                     <Bar dataKey="score" radius={[0, 6, 6, 0]} maxBarSize={28}>
