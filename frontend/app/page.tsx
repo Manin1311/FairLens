@@ -81,11 +81,11 @@ export default function HomePage() {
             <ShieldCheck className="text-blue-500" size={24} />
             <span className="text-xl font-bold gradient-text-blue">FairLens</span>
           </div>
-          <div className="hidden md:flex items-center gap-8 text-sm text-slate-400">
-            <a href="#problem" className="hover:text-white transition-colors">The Problem</a>
-            <a href="#how-it-works" className="hover:text-white transition-colors">How It Works</a>
-            <a href="#features" className="hover:text-white transition-colors">Features</a>
-            <a href="#compliance" className="hover:text-white transition-colors">Compliance</a>
+          <div className="hidden md:flex items-center gap-8 text-sm" style={{ color: "var(--text-secondary)" }}>
+            <a href="#problem" className="transition-colors hover:text-[var(--text-primary)]">The Problem</a>
+            <a href="#how-it-works" className="transition-colors hover:text-[var(--text-primary)]">How It Works</a>
+            <a href="#features" className="transition-colors hover:text-[var(--text-primary)]">Features</a>
+            <a href="#compliance" className="transition-colors hover:text-[var(--text-primary)]">Compliance</a>
           </div>
           <div className="flex items-center gap-3">
             <button onClick={toggleTheme}
