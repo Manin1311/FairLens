@@ -332,8 +332,9 @@ html.light .recharts-tooltip-label { color: #0f172a !important; }
 /* ── Dashboard sidebar and overlays ─────────────────────────────────── */
 html.light aside { background: rgba(255,255,255,0.97) !important; border-color: rgba(0,0,0,0.09) !important; }
 
-/* ── Audit page top nav ──────────────────────────────────────────────── */
+/* ── Audit & Landing page top nav ──────────────────────────────────────────────── */
 html.light .text-slate-500.hover\:text-white:hover { color: #0f172a !important; }
+html.light .text-slate-400.hover\:text-white:hover { color: #0f172a !important; }
 
 /* ── Progress / shimmer bars in dark slate ──────────────────────────── */
 html.light .bg-slate-800.rounded-full { background-color: #e2e8f0 !important; }
