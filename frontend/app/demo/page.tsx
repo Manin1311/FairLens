@@ -308,7 +308,10 @@ function DemoContent() {
                     <BarChart data={groupData}>
                       <XAxis dataKey="group" tick={{ fill:"#94a3b8", fontSize:12 }}/>
                       <YAxis tick={{ fill:"#94a3b8", fontSize:11 }} domain={[0,100]}/>
-                      <Tooltip contentStyle={{ background:"#0f172a", border:"1px solid #1e293b", borderRadius:8, color:"#e2e8f0" }}
+                      <Tooltip 
+                        contentStyle={{ background:"#0f172a", border:"1px solid #1e293b", borderRadius:8 }}
+                        itemStyle={{ color: "#e2e8f0" }}
+                        labelStyle={{ color: "#94a3b8", marginBottom: "4px" }}
                         formatter={(v:any) => [`${v}%`,"Positive Rate"]}/>
                       <Bar dataKey="rate" radius={[6,6,0,0]}>
                         {groupData.map((_:any,j:number) => <Cell key={j} fill={j===0?"#3b82f6":j===1?"#a78bfa":"#34d399"}/>)}
