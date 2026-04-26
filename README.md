@@ -1,10 +1,3 @@
-<p align="center">
-  <img src="https://img.shields.io/badge/Google%20Solution%20Challenge-2026-4285F4?style=for-the-badge&logo=google&logoColor=white" />
-  <img src="https://img.shields.io/badge/Powered%20by-Gemini%202.5%20Flash-8E75B2?style=for-the-badge&logo=google&logoColor=white" />
-  <img src="https://img.shields.io/badge/Cloud-Render-46E3B7?style=for-the-badge&logo=render&logoColor=white" />
-  <img src="https://img.shields.io/badge/Status-Live-22c55e?style=for-the-badge" />
-</p>
-
 <h1 align="center">🔍 FairLens — AI Bias Auditing Platform</h1>
 
 <p align="center">
@@ -14,8 +7,7 @@
 
 <p align="center">
   <a href="https://fairlens-unbiasedai.onrender.com"><strong>🌐 Live Demo</strong></a> ·
-  <a href="https://fairlens-unbiasedai.onrender.com/demo"><strong>⚡ Try Without Login</strong></a> ·
-  <a href="https://fairlens-backend.onrender.com/docs"><strong>📖 API Docs</strong></a>
+  <a href="https://fairlens-unbiasedai.onrender.com/demo"><strong>⚡ Try Without Login</strong></a> 
 </p>
 
 ---
@@ -179,15 +171,7 @@ npm run dev
 
 ---
 
-## 🌐 Live Deployment
 
-| Service | URL |
-|---|---|
-| **Frontend** | https://fairlens-unbiasedai.onrender.com |
-| **Backend API** | https://fairlens-backend.onrender.com |
-| **API Documentation** | https://fairlens-backend.onrender.com/docs |
-
-> Note: Free-tier Render instances sleep after 15 min of inactivity. First load may take ~30s to wake up.
 
 ---
 
@@ -244,14 +228,3 @@ Exceptional_Duo/
 
 ---
 
-## 👥 Team Exceptional Duo
-
-**Google Solution Challenge 2026 — India**
-
-Built with ❤️ and Google Gemini
-
----
-
-<p align="center">
-  <img src="https://img.shields.io/badge/Made%20for-Google%20Solution%20Challenge%202026-4285F4?style=flat-square&logo=google" />
-</p>
