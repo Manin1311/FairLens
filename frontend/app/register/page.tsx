@@ -175,7 +175,7 @@ export default function RegisterPage() {
                 <button type="button" onClick={() => setShowPass(!showPass)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
                   style={{ color: "var(--text-muted)" }}>
-                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showPass ? <Eye size={16} /> : <EyeOff size={16} />}
                 </button>
               </div>
               {/* Strength bar */}
