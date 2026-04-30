@@ -12,29 +12,31 @@ Base.metadata.create_all(bind=engine)
 
 # ── Safe column migrations (handles existing DBs without alembic) ───────────
 def run_migrations():
-    """Add new columns to existing tables without breaking existing data."""
+    """Add new columns to existing tables without breaking existing data.
+    Each migration runs in its own connection so a failure never poisons the next one.
+    """
     migrations = [
         # audits table — new columns added in v1.1
         ("audits", "is_public",  "BOOLEAN DEFAULT FALSE"),
         ("audits", "language",   "VARCHAR DEFAULT 'English'"),
     ]
-    with engine.connect() as conn:
-        for table, column, col_def in migrations:
+    import sqlalchemy
+
+    for table, column, col_def in migrations:
+        # Fresh connection per migration — isolation prevents cascade failures
+        with engine.begin() as conn:
             try:
                 conn.execute(
-                    __import__("sqlalchemy").text(
-                        f"ALTER TABLE {table} ADD COLUMN {column} {col_def}"
-                    )
+                    sqlalchemy.text(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}")
                 )
-                conn.commit()
                 print(f"[Migration] Added column {table}.{column}")
             except Exception as e:
-                # Column already exists — this is expected on subsequent restarts
                 err = str(e).lower()
                 if "duplicate" in err or "already exists" in err or "already has column" in err:
-                    pass  # Normal — column was added in a previous run
+                    pass  # Normal — column exists from a previous run
                 else:
                     print(f"[Migration] Warning for {table}.{column}: {e}")
+                # engine.begin() auto-rolls back on exception — no manual rollback needed
 
 run_migrations()
 
