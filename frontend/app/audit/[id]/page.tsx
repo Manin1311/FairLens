@@ -322,12 +322,13 @@ export default function AuditResultPage() {
     if (!localStorage.getItem("fairlens_token")) { router.push("/login"); return; }
     auditAPI.get(Number(id)).then((r) => {
       setAudit(r.data);
+      // Only poll if backend is still processing (safety net — normally instant)
       if (r.data.status === "processing") setGeminiLoading(true);
     }).catch(() => router.push("/dashboard"))
       .finally(() => setLoading(false));
   }, [id, router]);
 
-  // Poll while Gemini is still processing in the background
+  // Poll only when status=processing (rare — instant results cover normal case)
   useEffect(() => {
     if (!geminiLoading) return;
     const poll = setInterval(async () => {
@@ -339,7 +340,7 @@ export default function AuditResultPage() {
           clearInterval(poll);
         }
       } catch { clearInterval(poll); }
-    }, 3000);
+    }, 2000);
     return () => clearInterval(poll);
   }, [geminiLoading, id]);
 

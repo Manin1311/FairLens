@@ -85,18 +85,19 @@ async def run_audit(
     db.commit()
     db.refresh(audit)
 
-    # Save bias results immediately so the page can render
+    # Save bias results + instant rule-based explanation (zero wait for user)
     result = AuditResult(
         audit_id=audit.id,
         raw_analysis=json.dumps(analysis),
-        gemini_explanation="{}",
-        fix_suggestions="[]",
+        gemini_explanation=json.dumps(_instant_explanation(analysis, file.filename)),
+        fix_suggestions=json.dumps(_instant_fixes(analysis)),
         report_summary=""
     )
     db.add(result)
+    audit.status = "complete"   # page can load immediately
     db.commit()
 
-    # ── Phase 2: Gemini in background (user already gets the page) ───────────
+    # ── Gemini enriches in background (replaces instant results silently) ─────
     background_tasks.add_task(
         _enrich_with_gemini, audit.id, analysis, file.filename, language
     )
@@ -104,28 +105,131 @@ async def run_audit(
     return audit
 
 
+def _instant_explanation(analysis: dict, dataset_name: str = "") -> dict:
+    """Generate a complete structured explanation purely from bias metrics — zero API calls."""
+    risk    = analysis.get("overall_risk_level", "UNKNOWN")
+    score   = analysis.get("overall_fairness_score", 0)
+    attrs   = [a for a in analysis.get("attribute_results", []) if not a.get("error")]
+    drivers = analysis.get("bias_drivers", [])
+    rows    = analysis.get("total_rows", 0)
+    emoji   = "\U0001f534" if risk == "HIGH" else "\U0001f7e1" if risk == "MEDIUM" else "\U0001f7e2"
+
+    if risk == "HIGH":
+        tldr = f"This AI system has HIGH bias risk (score {score}/100) and likely violates fairness regulations."
+    elif risk == "MEDIUM":
+        tldr = f"This AI system has MEDIUM bias risk (score {score}/100) \u2014 remediation recommended before deployment."
+    else:
+        tldr = f"This AI system has LOW bias risk (score {score}/100) and appears broadly fair across groups."
+
+    findings = []
+    if drivers:
+        top = drivers[0]
+        findings.append(f"'{top['column']}' is the strongest bias driver ({top['contribution_pct']:.1f}% influence, {top['risk_level']} risk).")
+    for a in attrs[:3]:
+        dpd = a.get("demographic_parity_difference")
+        dis = a.get("most_disadvantaged_group")
+        adv = a.get("most_advantaged_group")
+        if dpd is not None and dis and adv and dis != adv:
+            findings.append(f"'{a['sensitive_column']}': '{dis}' group is most disadvantaged (DPD={dpd:.3f}, score={a.get('fairness_score')}/100).")
+    if not findings:
+        findings.append(f"Analysis completed on {rows:,} rows across {len(attrs)} attribute(s).")
+
+    high_risk = [a for a in attrs if a.get("risk_level") == "HIGH"]
+    if high_risk:
+        groups = ", ".join(f"'{a.get('most_disadvantaged_group','?')}' in {a['sensitive_column']}" for a in high_risk[:2])
+        who = f"Groups most at risk: {groups}. These individuals may receive unfair AI decisions."
+    elif attrs:
+        who = "Minority groups across the analysed attributes may experience unequal outcomes."
+    else:
+        who = "Could not determine affected groups from available data."
+
+    if risk == "HIGH":
+        consequence = "Deploying this system could systematically disadvantage specific groups, creating legal liability under EU AI Act and EEOC regulations."
+    elif risk == "MEDIUM":
+        consequence = "Some groups may receive unfair decisions at a rate that could attract regulatory scrutiny. Remediate before full deployment."
+    else:
+        consequence = "Current fairness levels are acceptable for deployment, though continuous monitoring is recommended."
+
+    if risk == "HIGH":
+        top_col = drivers[0]['column'] if drivers else 'the top attribute'
+        urgency = f"Do not deploy. Address '{top_col}' immediately using data rebalancing or fairness constraints."
+    elif risk == "MEDIUM":
+        urgency = "Review fix suggestions below. Apply data rebalancing for high-risk attributes before production rollout."
+    else:
+        urgency = "System is ready for deployment. Set up ongoing monitoring to catch bias drift over time."
+
+    return {
+        "tldr": tldr, "risk_emoji": emoji, "key_findings": findings,
+        "who_is_affected": who, "real_world_consequence": consequence, "urgency": urgency,
+        "_source": "instant"
+    }
+
+
+def _instant_fixes(analysis: dict) -> list:
+    """Generate rule-based fix suggestions from bias metrics — zero API calls."""
+    attrs   = [a for a in analysis.get("attribute_results", []) if not a.get("error")]
+    drivers = analysis.get("bias_drivers", [])
+    risk    = analysis.get("overall_risk_level", "LOW")
+    fixes   = []
+
+    if drivers:
+        top = drivers[0]
+        fixes.append({"title": f"Rebalance training data for '{top['column']}'",
+            "priority": top.get("risk_level", "HIGH"),
+            "description": f"'{top['column']}' accounts for {top['contribution_pct']:.1f}% of bias. Apply SMOTE or undersampling to equalise group representation.",
+            "expected_impact": "Reduces demographic parity difference by 30\u201360%", "effort": "MEDIUM"})
+
+    if risk in ("HIGH", "MEDIUM"):
+        fixes.append({"title": "Apply fairness constraints during model training",
+            "priority": "HIGH",
+            "description": "Use adversarial debiasing or Fairlearn's ExponentiatedGradient to enforce demographic parity during training.",
+            "expected_impact": "Reduces DPD by 40\u201370% with minimal accuracy loss", "effort": "HIGH"})
+
+    fixes.append({"title": "Calibrate decision thresholds per group",
+        "priority": "MEDIUM",
+        "description": "Apply separate classification thresholds per sensitive group to equalise positive rates. Fastest fix without retraining.",
+        "expected_impact": "Immediate improvement in disparate impact ratio", "effort": "LOW"})
+
+    proxy = drivers[1] if len(drivers) > 1 else None
+    if proxy:
+        fixes.append({"title": f"Audit '{proxy['column']}' for proxy discrimination",
+            "priority": proxy.get("risk_level", "MEDIUM"),
+            "description": f"'{proxy['column']}' may act as a proxy for protected characteristics. Analyse its correlation and consider removing or transforming it.",
+            "expected_impact": "Reduces indirect discrimination risk", "effort": "MEDIUM"})
+    else:
+        fixes.append({"title": "Remove high-correlation proxy features",
+            "priority": "MEDIUM",
+            "description": "Identify features correlated with sensitive attributes (e.g. zip code \u2194 race) and apply feature transformation.",
+            "expected_impact": "Reduces indirect discrimination", "effort": "MEDIUM"})
+
+    fixes.append({"title": "Implement continuous fairness monitoring",
+        "priority": "LOW",
+        "description": "Set up automated bias audits in your CI/CD pipeline. Alert when DPD exceeds 0.1 or DIR drops below 0.8 in production.",
+        "expected_impact": "Early detection prevents bias drift", "effort": "LOW"})
+
+    return fixes[:5]
+
+
 async def _enrich_with_gemini(audit_id: int, analysis: dict, dataset_name: str, language: str):
-    """Background task: runs Gemini calls and updates the audit result in DB."""
+    """Background task: replaces instant results with Gemini-quality explanations."""
     from models.database import SessionLocal
     db = SessionLocal()
     try:
-        explanation_dict, fixes, report_summary = await asyncio.gather(
+        # Run explain and fix_suggestions in parallel — report_summary done lazily
+        explanation_dict, fixes = await asyncio.gather(
             gemini_service.explain_bias_findings(analysis, dataset_name, language),
             gemini_service.generate_fix_suggestions(analysis),
-            gemini_service.generate_report_summary(analysis, dataset_name, language),
         )
         result = db.query(AuditResult).filter(AuditResult.audit_id == audit_id).first()
         audit  = db.query(Audit).filter(Audit.id == audit_id).first()
         if result and audit:
             result.gemini_explanation = json.dumps(explanation_dict)
             result.fix_suggestions    = json.dumps(fixes)
-            result.report_summary     = report_summary
             audit.status              = "complete"
             db.commit()
     except Exception as e:
         import traceback; traceback.print_exc()
         print(f"[BG Gemini error for audit {audit_id}]: {e}")
-        # Still mark complete so UI doesn't poll forever
         try:
             audit = db.query(Audit).filter(Audit.id == audit_id).first()
             if audit:
