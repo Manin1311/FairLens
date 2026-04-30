@@ -69,21 +69,22 @@ export default function NewAuditPage() {
     const msgs = [
       "Loading dataset...", "Detecting sensitive attributes...",
       "Computing bias metrics...", "Calculating fairness scores...",
-      "Calling Gemini AI for insights...", "Generating fix suggestions...",
-      "Finalising audit report..."
+      "Saving audit results...", "Almost done...",
     ];
     let i = 0;
     setProgressMsg(msgs[0]);
+    setProgress(5);
     const interval = setInterval(() => {
       i++;
-      if (i < msgs.length) { setProgressMsg(msgs[i]); setProgress(Math.round((i / msgs.length) * 85)); }
-    }, 2000);
+      if (i < msgs.length) { setProgressMsg(msgs[i]); setProgress(Math.round((i / msgs.length) * 90)); }
+    }, 1800);
     try {
       const res = await auditAPI.runAudit(file, auditName, selectedSensitive, targetCol, predCol || undefined);
       clearInterval(interval);
       setProgress(100);
-      setProgressMsg("Done! Redirecting...");
-      setTimeout(() => router.push(`/audit/${res.data.id}`), 800);
+      setProgressMsg("Done! Loading results...");
+      // Redirect immediately — Gemini loads in background on the audit page
+      setTimeout(() => router.push(`/audit/${res.data.id}`), 500);
     } catch (e: any) {
       clearInterval(interval);
       setError(e.response?.data?.detail || "Analysis failed. Please try again.");

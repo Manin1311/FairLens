@@ -316,11 +316,32 @@ export default function AuditResultPage() {
   const [activeAttr, setActiveAttr] = useState(0);
   const [pdfLoading, setPdfLoading] = useState(false);
 
+  const [geminiLoading, setGeminiLoading] = useState(false);
+
   useEffect(() => {
     if (!localStorage.getItem("fairlens_token")) { router.push("/login"); return; }
-    auditAPI.get(Number(id)).then((r) => setAudit(r.data)).catch(() => router.push("/dashboard"))
+    auditAPI.get(Number(id)).then((r) => {
+      setAudit(r.data);
+      if (r.data.status === "processing") setGeminiLoading(true);
+    }).catch(() => router.push("/dashboard"))
       .finally(() => setLoading(false));
   }, [id, router]);
+
+  // Poll while Gemini is still processing in the background
+  useEffect(() => {
+    if (!geminiLoading) return;
+    const poll = setInterval(async () => {
+      try {
+        const r = await auditAPI.get(Number(id));
+        if (r.data.status === "complete") {
+          setAudit(r.data);
+          setGeminiLoading(false);
+          clearInterval(poll);
+        }
+      } catch { clearInterval(poll); }
+    }, 3000);
+    return () => clearInterval(poll);
+  }, [geminiLoading, id]);
 
   const sendChat = async () => {
     if (!chatMsg.trim() || chatLoading) return;
@@ -670,8 +691,27 @@ export default function AuditResultPage() {
               </div>
             )}
 
-            {/* Gemini Explanation — structured card */}
-            {geminiData && (
+            {/* Gemini Explanation — skeleton while processing, then content */}
+            {geminiLoading && (
+              <motion.div className="glass p-6"
+                initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                    <Zap size={18} className="text-yellow-400" /> Gemini AI Analysis
+                  </h2>
+                  <span className="flex items-center gap-1.5 text-xs text-yellow-400/80">
+                    <Loader2 size={12} className="animate-spin" /> Generating insights...
+                  </span>
+                </div>
+                <div className="space-y-3 animate-pulse">
+                  <div className="h-16 bg-white/5 rounded-xl w-full" />
+                  <div className="h-4 bg-white/5 rounded-full w-3/4" />
+                  <div className="h-4 bg-white/5 rounded-full w-full" />
+                  <div className="h-4 bg-white/5 rounded-full w-5/6" />
+                </div>
+              </motion.div>
+            )}
+            {!geminiLoading && geminiData && (
               <motion.div className="glass p-6"
                 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
                 <div className="flex items-center justify-between mb-4">
@@ -756,8 +796,16 @@ export default function AuditResultPage() {
 
           {/* Right: Fixes + Chat */}
           <div className="space-y-6">
-            {/* Fix Suggestions */}
-            {fixes.length > 0 && (
+            {/* Fix Suggestions — skeleton while processing */}
+            {geminiLoading && (
+              <div className="glass p-6">
+                <h2 className="text-lg font-semibold text-white mb-4">Recommended Fixes</h2>
+                <div className="space-y-3 animate-pulse">
+                  {[1,2,3].map(i => <div key={i} className="h-16 bg-white/5 rounded-xl" />)}
+                </div>
+              </div>
+            )}
+            {!geminiLoading && fixes.length > 0 && (
               <div className="glass p-6">
                 <h2 className="text-lg font-semibold text-white mb-4">Recommended Fixes</h2>
                 <div className="space-y-4">

@@ -1,7 +1,7 @@
 import json
 import asyncio
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from models.database import get_db, User, Audit, AuditResult
 from models.schemas import (
@@ -43,6 +43,7 @@ async def detect_columns(
 # ─── Run Full Analysis ────────────────────────────────────────────────────────
 @router.post("/run", response_model=AuditOut, status_code=status.HTTP_201_CREATED)
 async def run_audit(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     name: str = Form(...),
     sensitive_columns: str = Form(...),
@@ -52,7 +53,7 @@ async def run_audit(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Upload CSV, run full bias analysis, get Gemini explanation and fix suggestions."""
+    """Upload CSV, run bias analysis immediately, then enrich with Gemini in background."""
     _validate_file(file)
     content = await file.read()
     df = load_dataframe(content, file.filename)
@@ -62,10 +63,10 @@ async def run_audit(
     except json.JSONDecodeError:
         raise HTTPException(status_code=422, detail="sensitive_columns must be a valid JSON array")
 
-    # ── Run bias engine ──────────────────────────────────────────────────────
+    # ── Phase 1: Run bias engine (fast) ──────────────────────────────────────
     analysis = run_full_analysis(df, sensitive_cols, target_column, prediction_column)
 
-    # ── Persist audit record ─────────────────────────────────────────────────
+    # ── Persist audit + empty result placeholder ──────────────────────────────
     audit = Audit(
         user_id=current_user.id,
         name=name,
@@ -84,34 +85,57 @@ async def run_audit(
     db.commit()
     db.refresh(audit)
 
-    # ── Call Gemini in PARALLEL (3x faster than sequential) ─────────────────
-    try:
-        explanation_dict, fixes, report_summary = await asyncio.gather(
-            gemini_service.explain_bias_findings(analysis, file.filename, language),
-            gemini_service.generate_fix_suggestions(analysis),
-            gemini_service.generate_report_summary(analysis, name, language),
-        )
-        fixes_json = json.dumps(fixes)
-        explanation_str = json.dumps(explanation_dict)
-    except Exception as e:
-        explanation_str = json.dumps({"tldr": f"Gemini unavailable: {str(e)[:80]}", "key_findings": [], "detailed_analysis": ""})
-        fixes_json = "[]"
-        report_summary = ""
-
-    # ── Save results ─────────────────────────────────────────────────────────
+    # Save bias results immediately so the page can render
     result = AuditResult(
         audit_id=audit.id,
         raw_analysis=json.dumps(analysis),
-        gemini_explanation=explanation_str,
-        fix_suggestions=fixes_json,
-        report_summary=report_summary
+        gemini_explanation="{}",
+        fix_suggestions="[]",
+        report_summary=""
     )
     db.add(result)
-    audit.status = "complete"
     db.commit()
-    db.refresh(audit)
+
+    # ── Phase 2: Gemini in background (user already gets the page) ───────────
+    background_tasks.add_task(
+        _enrich_with_gemini, audit.id, analysis, file.filename, language
+    )
 
     return audit
+
+
+async def _enrich_with_gemini(audit_id: int, analysis: dict, dataset_name: str, language: str):
+    """Background task: runs Gemini calls and updates the audit result in DB."""
+    from models.database import SessionLocal
+    db = SessionLocal()
+    try:
+        explanation_dict, fixes, report_summary = await asyncio.gather(
+            gemini_service.explain_bias_findings(analysis, dataset_name, language),
+            gemini_service.generate_fix_suggestions(analysis),
+            gemini_service.generate_report_summary(analysis, dataset_name, language),
+        )
+        result = db.query(AuditResult).filter(AuditResult.audit_id == audit_id).first()
+        audit  = db.query(Audit).filter(Audit.id == audit_id).first()
+        if result and audit:
+            result.gemini_explanation = json.dumps(explanation_dict)
+            result.fix_suggestions    = json.dumps(fixes)
+            result.report_summary     = report_summary
+            audit.status              = "complete"
+            db.commit()
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        print(f"[BG Gemini error for audit {audit_id}]: {e}")
+        # Still mark complete so UI doesn't poll forever
+        try:
+            audit = db.query(Audit).filter(Audit.id == audit_id).first()
+            if audit:
+                audit.status = "complete"
+                db.commit()
+        except Exception:
+            pass
+    finally:
+        db.close()
+
 
 
 # ─── List Audits ──────────────────────────────────────────────────────────────
