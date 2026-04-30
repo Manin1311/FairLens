@@ -77,6 +77,8 @@ export const auditAPI = {
     api.post("/api/audit/chat", { audit_id: auditId, question }),
   delete: (id: number) => api.delete(`/api/audit/${id}`),
   runDemo: (dataset: string) => api.post(`/api/audit/demo/${dataset}`),
+  runDemoQuick: (dataset: string) => api.post(`/api/audit/demo/${dataset}/quick`),
+  runDemoExplain: (dataset: string) => api.post(`/api/audit/demo/${dataset}/explain`),
   reExplain: (id: number, language: string) =>
     api.post(`/api/audit/${id}/re-explain?language=${encodeURIComponent(language)}`),
   toggleShare: (id: number) => api.patch(`/api/audit/${id}/share`),

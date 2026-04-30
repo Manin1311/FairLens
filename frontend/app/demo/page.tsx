@@ -155,23 +155,48 @@ function WhatIf({ attrs, overall }: { attrs: any[]; overall: number }) {
 /* ── Main demo content ─────────────────────────────────────────────────────── */
 function DemoContent() {
   const params = useSearchParams();
-  const [selected, setSelected] = useState(params.get("dataset") || "");
-  const [result, setResult]     = useState<any>(null);
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState("");
+  const [selected, setSelected]         = useState(params.get("dataset") || "");
+  const [result, setResult]             = useState<any>(null);
+  const [loading, setLoading]           = useState(false);
+  const [geminiLoading, setGeminiLoading] = useState(false);
+  const [geminiData, setGeminiData]     = useState<any>(null);
+  const [error, setError]               = useState("");
 
   useEffect(() => { if (params.get("dataset")) runDemo(params.get("dataset")!); }, []);
 
   const runDemo = async (key: string) => {
-    setSelected(key); setResult(null); setError(""); setLoading(true);
-    try { const res = await auditAPI.runDemo(key); setResult(res.data); }
-    catch (e: any) { setError(e.response?.data?.detail || "Demo dataset not available."); }
-    finally { setLoading(false); }
+    setSelected(key);
+    setResult(null);
+    setGeminiData(null);
+    setError("");
+    setLoading(true);
+    setGeminiLoading(false);
+
+    try {
+      // ── Phase 1: bias metrics (fast, ~1-2s) ─────────────────────────────
+      const res = await auditAPI.runDemoQuick(key);
+      setResult(res.data);
+      setLoading(false);
+
+      // ── Phase 2: Gemini AI explanation (slow, loads in background) ───────
+      setGeminiLoading(true);
+      try {
+        const gRes = await auditAPI.runDemoExplain(key);
+        setGeminiData(gRes.data);
+      } catch {
+        setGeminiData({ gemini_explanation: null, fix_suggestions: [] });
+      } finally {
+        setGeminiLoading(false);
+      }
+    } catch (e: any) {
+      setError(e.response?.data?.detail || "Demo dataset not available.");
+      setLoading(false);
+    }
   };
 
   const analysis = result?.analysis ?? {};
   const attrs    = analysis.attribute_results ?? [];
-  const fixes    = result?.fix_suggestions ?? [];
+  const fixes    = geminiData?.fix_suggestions ?? [];
   const drivers  = analysis.bias_drivers ?? [];
 
   return (
@@ -227,12 +252,14 @@ function DemoContent() {
               <p className="text-slate-400 text-sm mb-3">
                 {analysis.total_rows?.toLocaleString()} rows · {analysis.columns_analyzed} attribute{analysis.columns_analyzed!==1?"s":""} analysed
               </p>
-              {result.gemini_explanation && (() => {
-                const g = typeof result.gemini_explanation === "string"
-                  ? (() => { try { return JSON.parse(result.gemini_explanation); } catch { return { tldr: result.gemini_explanation }; }})()
-                  : result.gemini_explanation;
-                return g.tldr ? <p className="text-slate-300 text-sm leading-relaxed">{g.tldr}</p> : null;
-              })()}
+              {geminiData?.gemini_explanation?.tldr && (
+                <p className="text-slate-300 text-sm leading-relaxed">{geminiData.gemini_explanation.tldr}</p>
+              )}
+              {geminiLoading && (
+                <div className="flex items-center gap-2 text-xs text-yellow-400/70 mt-1">
+                  <Loader2 size={11} className="animate-spin" /> Gemini AI analyzing...
+                </div>
+              )}
             </div>
           </div>
 
@@ -323,9 +350,29 @@ function DemoContent() {
             );
           })}
 
-          {/* Fix Suggestions */}
-          {fixes.length > 0 && (
-            <div className="glass p-6">
+          {/* ── AI Section: Skeleton → Gemini content ───────────────────────────── */}
+          {geminiLoading && (
+            <motion.div className="glass p-6" initial={{ opacity:0 }} animate={{ opacity:1 }}>
+              <div className="flex items-center gap-2 mb-4">
+                <Zap size={18} className="text-yellow-400"/>
+                <h3 className="font-semibold text-white">Gemini AI Analysis</h3>
+                <span className="ml-auto flex items-center gap-1.5 text-xs text-yellow-400/80">
+                  <Loader2 size={12} className="animate-spin"/> Generating insights...
+                </span>
+              </div>
+              {/* Skeleton lines */}
+              <div className="space-y-3 animate-pulse">
+                <div className="h-4 bg-white/5 rounded-full w-3/4" />
+                <div className="h-4 bg-white/5 rounded-full w-full" />
+                <div className="h-4 bg-white/5 rounded-full w-5/6" />
+                <div className="h-4 bg-white/5 rounded-full w-2/3" />
+              </div>
+            </motion.div>
+          )}
+
+          {/* Fix Suggestions — from geminiData */}
+          {!geminiLoading && fixes.length > 0 && (
+            <motion.div className="glass p-6" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}>
               <div className="flex items-center gap-2 mb-4">
                 <FileText size={18} className="text-green-400"/>
                 <h3 className="font-semibold text-white">Recommended Fixes</h3>
@@ -344,21 +391,22 @@ function DemoContent() {
                   </div>
                 ))}
               </div>
-            </div>
+            </motion.div>
           )}
 
-          {/* Full Gemini explanation — structured */}
-          {result.gemini_explanation && (() => {
-            const g = typeof result.gemini_explanation === "string"
-              ? JSON.parse(result.gemini_explanation)
-              : result.gemini_explanation;
+          {/* Full Gemini explanation — fades in when geminiData arrives */}
+          {!geminiLoading && geminiData?.gemini_explanation && (() => {
+            const g = typeof geminiData.gemini_explanation === "string"
+              ? (() => { try { return JSON.parse(geminiData.gemini_explanation); } catch { return { tldr: geminiData.gemini_explanation }; }})()
+              : geminiData.gemini_explanation;
+            if (!g?.tldr) return null;
             return (
-              <div className="glass p-6">
+              <motion.div className="glass p-6" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}>
                 <div className="flex items-center gap-2 mb-4">
                   <Zap size={18} className="text-yellow-400"/>
                   <h3 className="font-semibold text-white">Gemini AI Analysis</h3>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 ml-auto">AI</span>
                 </div>
-                {/* TL;DR */}
                 {g.tldr && (
                   <div className="rounded-xl p-4 mb-4 flex items-start gap-3"
                     style={{ background:"rgba(250,204,21,0.08)", border:"1px solid rgba(250,204,21,0.2)" }}>
@@ -369,7 +417,6 @@ function DemoContent() {
                     </div>
                   </div>
                 )}
-                {/* Key findings */}
                 {g.key_findings?.length > 0 && (
                   <div className="mb-4">
                     <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Key Findings</div>
@@ -383,7 +430,6 @@ function DemoContent() {
                     </ul>
                   </div>
                 )}
-                {/* Who + consequence */}
                 {(g.who_is_affected || g.real_world_consequence) && (
                   <div className="grid md:grid-cols-2 gap-3 mb-4">
                     {g.who_is_affected && (
@@ -400,14 +446,13 @@ function DemoContent() {
                     )}
                   </div>
                 )}
-                {/* Urgency */}
                 {g.urgency && (
                   <div className="rounded-xl p-3" style={{ background:"rgba(59,130,246,0.07)", border:"1px solid rgba(59,130,246,0.2)" }}>
                     <div className="text-xs font-bold text-blue-400 mb-1">Action Required</div>
                     <p className="text-xs text-slate-300 leading-relaxed">{g.urgency}</p>
                   </div>
                 )}
-              </div>
+              </motion.div>
             );
           })()}
 

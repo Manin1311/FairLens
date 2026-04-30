@@ -235,23 +235,53 @@ def delete_audit(
 
 
 # ─── Demo Mode (no auth) ──────────────────────────────────────────────────────
-@router.post("/demo/{dataset_name}")
-async def run_demo(dataset_name: str):
+# In-memory cache so we don't re-read CSVs on every request
+_DEMO_CACHE: dict = {}
+
+def _load_demo(dataset_name: str):
+    """Load and cache demo dataset + run bias analysis (fast, no Gemini)."""
+    import os, pandas as pd
+    if dataset_name not in _DEMO_CACHE:
+        demo_path = f"demo_datasets/{dataset_name}.csv"
+        if not os.path.exists(demo_path):
+            raise HTTPException(status_code=404, detail=f"Demo dataset '{dataset_name}' not found")
+        df = pd.read_csv(demo_path)
+        sensitive_cols = detect_sensitive_columns(df)
+        target_col = detect_target_column(df)
+        analysis = run_full_analysis(df, sensitive_cols, target_col)
+        _DEMO_CACHE[dataset_name] = {
+            "columns": list(df.columns),
+            "sensitive_columns": sensitive_cols,
+            "target_column": target_col,
+            "analysis": analysis,
+        }
+    return _DEMO_CACHE[dataset_name]
+
+
+@router.post("/demo/{dataset_name}/quick")
+async def run_demo_quick(dataset_name: str):
     """
-    Run a demo analysis on a pre-loaded dataset.
+    Phase-1 demo: returns bias analysis instantly (no Gemini wait).
+    Frontend renders results immediately; then calls /explain for AI layer.
     Available: compas | adult_income | german_credit
     """
-    import os
-    demo_path = f"demo_datasets/{dataset_name}.csv"
-    if not os.path.exists(demo_path):
-        raise HTTPException(status_code=404, detail=f"Demo dataset '{dataset_name}' not found")
+    data = _load_demo(dataset_name)
+    return {
+        "dataset": dataset_name,
+        **data,
+        "gemini_explanation": None,
+        "fix_suggestions": [],
+    }
 
-    import pandas as pd
-    df = pd.read_csv(demo_path)
-    sensitive_cols = detect_sensitive_columns(df)
-    target_col = detect_target_column(df)
-    analysis = run_full_analysis(df, sensitive_cols, target_col)
 
+@router.post("/demo/{dataset_name}/explain")
+async def run_demo_explain(dataset_name: str):
+    """
+    Phase-2 demo: returns Gemini AI explanation + fix suggestions.
+    Call this after /quick has already rendered bias metrics on the frontend.
+    """
+    data = _load_demo(dataset_name)
+    analysis = data["analysis"]
     explanation = ""
     fixes = []
     try:
@@ -261,17 +291,37 @@ async def run_demo(dataset_name: str):
         )
     except Exception as e:
         import traceback
-        print(f"[GEMINI ERROR in demo/{dataset_name}]: {e}")
+        print(f"[GEMINI ERROR in demo/{dataset_name}/explain]: {e}")
         traceback.print_exc()
-        explanation = f"AI explanation temporarily unavailable. Bias metrics above are accurate. Error: {str(e)[:120]}"
+        explanation = {"tldr": f"AI explanation temporarily unavailable. Error: {str(e)[:120]}", "key_findings": []}
         fixes = []
+    return {
+        "gemini_explanation": explanation,
+        "fix_suggestions": fixes,
+    }
 
+
+@router.post("/demo/{dataset_name}")
+async def run_demo(dataset_name: str):
+    """
+    Legacy combined demo endpoint (kept for backward compat).
+    Prefer /demo/{dataset_name}/quick + /demo/{dataset_name}/explain.
+    """
+    data = _load_demo(dataset_name)
+    analysis = data["analysis"]
+    explanation = ""
+    fixes = []
+    try:
+        explanation, fixes = await asyncio.gather(
+            gemini_service.explain_bias_findings(analysis, f"{dataset_name} dataset"),
+            gemini_service.generate_fix_suggestions(analysis),
+        )
+    except Exception as e:
+        explanation = {"tldr": f"AI explanation temporarily unavailable. Error: {str(e)[:120]}", "key_findings": []}
+        fixes = []
     return {
         "dataset": dataset_name,
-        "columns": list(df.columns),
-        "sensitive_columns": sensitive_cols,
-        "target_column": target_col,
-        "analysis": analysis,
+        **data,
         "gemini_explanation": explanation,
         "fix_suggestions": fixes,
     }
