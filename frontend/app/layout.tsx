@@ -15,6 +15,14 @@ export const metadata: Metadata = {
   description:
     "Detect, measure, and fix hidden bias in AI systems. FairLens helps organizations build fair, equitable AI — powered by Google Gemini.",
   keywords: "AI bias, fairness, machine learning audit, bias detection, Gemini AI",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    shortcut: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
   openGraph: {
     title: "FairLens — Making AI Fair for Everyone",
     description: "Detect and fix hidden bias in your AI systems in minutes.",
