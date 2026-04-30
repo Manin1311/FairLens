@@ -17,11 +17,10 @@ export const metadata: Metadata = {
   keywords: "AI bias, fairness, machine learning audit, bias detection, Gemini AI",
   icons: {
     icon: [
-      { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.svg", type: "image/svg+xml" },
     ],
-    shortcut: "/favicon.svg",
-    apple: "/favicon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
   },
   openGraph: {
     title: "FairLens — Making AI Fair for Everyone",
