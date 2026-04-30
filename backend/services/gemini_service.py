@@ -88,39 +88,40 @@ def _clean_json(text: str) -> str:
 async def explain_bias_findings(analysis_results: dict, dataset_context: str = "", language: str = "English") -> dict:
     """Generate structured bias explanation. Returns dict with tldr, key_findings, etc."""
     lang_instruction = f"Write your entire response in {language}." if language != "English" else ""
-    prompt = f"""
-You are an AI fairness expert. Explain bias detection results to a non-technical manager.
+
+    # Slim the payload — only send what Gemini needs (saves tokens → faster)
+    slim = {
+        "overall_fairness_score": analysis_results.get("overall_fairness_score"),
+        "overall_risk_level":     analysis_results.get("overall_risk_level"),
+        "total_rows":             analysis_results.get("total_rows"),
+        "bias_drivers":           analysis_results.get("bias_drivers", []),
+        "attribute_results": [
+            {
+                "sensitive_column":               r.get("sensitive_column"),
+                "risk_level":                     r.get("risk_level"),
+                "fairness_score":                 r.get("fairness_score"),
+                "demographic_parity_difference":  r.get("demographic_parity_difference"),
+                "disparate_impact_ratio":          r.get("disparate_impact_ratio"),
+                "most_disadvantaged_group":        r.get("most_disadvantaged_group"),
+                "most_advantaged_group":           r.get("most_advantaged_group"),
+            }
+            for r in analysis_results.get("attribute_results", []) if not r.get("error")
+        ],
+    }
+
+    prompt = f"""You are an AI fairness expert. Explain bias results to a non-technical manager.
 {lang_instruction}
+Dataset: {dataset_context or "Decision-making dataset (hiring, loans, or similar)"}
+Results: {json.dumps(slim)}
 
-Analysis Results:
-{json.dumps(analysis_results, indent=2)}
-
-Dataset Context: {dataset_context if dataset_context else "Decision-making dataset (hiring, loans, or similar)"}
-
-Return ONLY a valid JSON object with this exact structure:
-{{
-  "tldr": "One clear sentence verdict — is this AI fair or not? (max 20 words)",
-  "risk_emoji": "single emoji representing the risk level",
-  "key_findings": [
-    "Finding 1 in plain English with specific numbers",
-    "Finding 2 in plain English with specific numbers",
-    "Finding 3 in plain English with specific numbers"
-  ],
-  "who_is_affected": "Specific group(s) being disadvantaged and by how much",
-  "real_world_consequence": "What happens to real people if this AI is deployed",
-  "urgency": "What the organization must do immediately (1-2 sentences)",
-  "detailed_analysis": "2-3 paragraph deeper explanation for those who want more detail"
-}}
-
-Be direct, human, and powerful. Use specific numbers. No jargon. Return ONLY JSON.
-"""
+Return ONLY valid JSON:
+{{"tldr":"One clear verdict sentence (max 20 words)","risk_emoji":"single emoji","key_findings":["Finding 1 with numbers","Finding 2 with numbers","Finding 3 with numbers"],"who_is_affected":"Specific group(s) disadvantaged and by how much","real_world_consequence":"What happens to real people if deployed","urgency":"What must be done immediately (1-2 sentences)"}}"""
     loop = asyncio.get_running_loop()
     text = await loop.run_in_executor(None, _generate_with_retry, prompt)
     cleaned = _clean_json(text)
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
-        # Fallback structured response
         overall = analysis_results.get("overall_risk_level", "UNKNOWN")
         score = analysis_results.get("overall_fairness_score", 0)
         return {
@@ -134,33 +135,27 @@ Be direct, human, and powerful. Use specific numbers. No jargon. Return ONLY JSO
             "who_is_affected": "See per-attribute analysis for specific disadvantaged groups.",
             "real_world_consequence": "Biased AI systems can cause unfair outcomes for protected groups.",
             "urgency": "Review the recommended fixes below and implement them before deployment.",
-            "detailed_analysis": ""
         }
 
 
 async def generate_fix_suggestions(analysis_results: dict) -> list:
     """Generate ranked, actionable remediation steps."""
-    prompt = f"""
-You are an AI fairness engineer providing remediation advice to a technical team.
-
-Bias Analysis Results:
-{json.dumps(analysis_results, indent=2)}
-
-Generate exactly 5 specific, actionable fix suggestions in this JSON format:
-[
-  {{
-    "title": "Short action title",
-    "priority": "HIGH",
-    "description": "Specific steps to implement this fix",
-    "expected_impact": "Quantified improvement expected",
-    "effort": "LOW"
-  }}
-]
-
-Priority must be HIGH/MEDIUM/LOW. Effort must be LOW/MEDIUM/HIGH.
-Order by priority (HIGH first). Be specific to the actual bias found.
-Return ONLY valid JSON array, nothing else.
-"""
+    # Slim payload — only risk-level summary needed for fix suggestions
+    slim = {
+        "overall_risk_level":   analysis_results.get("overall_risk_level"),
+        "overall_fairness_score": analysis_results.get("overall_fairness_score"),
+        "bias_drivers":         analysis_results.get("bias_drivers", []),
+        "attribute_results": [
+            {"sensitive_column": r.get("sensitive_column"), "risk_level": r.get("risk_level"),
+             "demographic_parity_difference": r.get("demographic_parity_difference"),
+             "disparate_impact_ratio": r.get("disparate_impact_ratio")}
+            for r in analysis_results.get("attribute_results", []) if not r.get("error")
+        ],
+    }
+    prompt = f"""You are an AI fairness engineer. Give 5 specific, actionable fixes.
+Results: {json.dumps(slim)}
+Return ONLY a JSON array of 5 objects: [{{"title":"...","priority":"HIGH|MEDIUM|LOW","description":"...","expected_impact":"...","effort":"LOW|MEDIUM|HIGH"}}]
+Order HIGH priority first. Be specific to the actual bias found."""
     loop = asyncio.get_running_loop()
     text = await loop.run_in_executor(None, _generate_with_retry, prompt)
     cleaned = _clean_json(text)

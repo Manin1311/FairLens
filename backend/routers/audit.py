@@ -278,11 +278,19 @@ async def run_demo_quick(dataset_name: str):
 async def run_demo_explain(dataset_name: str):
     """
     Phase-2 demo: returns Gemini AI explanation + fix suggestions.
-    Call this after /quick has already rendered bias metrics on the frontend.
+    Results are cached in memory — instant on repeat calls.
     """
     data = _load_demo(dataset_name)
+
+    # ── Return cached Gemini result if available (instant) ───────────────────
+    if "gemini_explanation" in data:
+        return {
+            "gemini_explanation": data["gemini_explanation"],
+            "fix_suggestions":    data["fix_suggestions"],
+        }
+
     analysis = data["analysis"]
-    explanation = ""
+    explanation = {}
     fixes = []
     try:
         explanation, fixes = await asyncio.gather(
@@ -295,9 +303,14 @@ async def run_demo_explain(dataset_name: str):
         traceback.print_exc()
         explanation = {"tldr": f"AI explanation temporarily unavailable. Error: {str(e)[:120]}", "key_findings": []}
         fixes = []
+
+    # ── Cache so next caller gets it instantly ────────────────────────────────
+    _DEMO_CACHE[dataset_name]["gemini_explanation"] = explanation
+    _DEMO_CACHE[dataset_name]["fix_suggestions"]    = fixes
+
     return {
         "gemini_explanation": explanation,
-        "fix_suggestions": fixes,
+        "fix_suggestions":    fixes,
     }
 
 
