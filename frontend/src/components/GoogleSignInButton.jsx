@@ -14,8 +14,7 @@ export const GoogleSignInButton = ({ text = "Continue with Google" }) => {
   const isInitializedRef = useRef(false);
 
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID 
-    || import.meta.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID 
-    || '997587061669-3abhl7jpso6eo88pim5d1ugp9raskseq.apps.googleusercontent.com';
+    || import.meta.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
   const handleGoogleCredentialResponse = async (response) => {
     if (!response.credential) return;
