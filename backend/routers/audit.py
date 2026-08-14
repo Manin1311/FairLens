@@ -312,6 +312,18 @@ async def chat_about_audit(
     return ChatResponse(answer=answer)
 
 
+@router.post("/demo/chat")
+async def demo_chat_about_audit(payload: Dict[str, Any]):
+    question = payload.get("question", "")
+    analysis = payload.get("analysis")
+    if not analysis:
+        dataset_name = payload.get("dataset_name", "compas")
+        demo = _load_demo(dataset_name)
+        analysis = demo.get("analysis", {})
+    answer = await gemini_service.answer_question(question, analysis)
+    return {"answer": answer}
+
+
 # ─── Toggle Public Sharing ────────────────────────────────────────────────────
 @router.patch("/{audit_id}/share")
 def toggle_share(audit_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

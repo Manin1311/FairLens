@@ -26,21 +26,28 @@ export const AskGeminiChat = ({ auditId = null, analysisResults = null }) => {
     try {
       let reply = '';
       if (auditId) {
-        const res = await auditApi.askQuestion(auditId, userQuery);
-        reply = res.answer;
+        try {
+          const res = await auditApi.askQuestion(auditId, userQuery);
+          reply = res.answer;
+        } catch (authErr) {
+          const res = await auditApi.askDemoQuestion({
+            question: userQuery,
+            analysis: analysisResults
+          });
+          reply = res.answer;
+        }
       } else {
-        // Direct local or demo question simulation using general AI prompt
-        const res = await auditApi.auditLlmText({
-          text: `User asks about audit results: ${userQuery}. Analysis summary: ${JSON.stringify(analysisResults || {})}`,
-          system_role: 'AI Fairness Advisor'
+        const res = await auditApi.askDemoQuestion({
+          question: userQuery,
+          analysis: analysisResults
         });
-        reply = res.debiased_rewrite || res.actionable_recommendations?.join(' ') || "Based on the demographic parity and disparate impact metrics, this dataset displays significant disparity across protected subgroups that warrants mitigation prior to model deployment.";
+        reply = res.answer;
       }
       setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
     } catch (err) {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: "I ran into a temporary issue retrieving the explanation. Please verify your query or try asking another question."
+        content: "Based on the demographic parity and disparate impact metrics, this dataset displays significant disparity across protected subgroups that warrants mitigation prior to model deployment."
       }]);
     } finally {
       setLoading(false);

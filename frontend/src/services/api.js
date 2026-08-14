@@ -109,6 +109,11 @@ export const auditApi = {
     return res.data;
   },
 
+  askDemoQuestion: async (payload) => {
+    const res = await api.post('/audit/demo/chat', payload);
+    return res.data;
+  },
+
   // PDF Report download
   downloadReport: (auditId) => {
     const token = localStorage.getItem('fairlens_token');
