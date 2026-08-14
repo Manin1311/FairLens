@@ -17,6 +17,14 @@ export default defineConfig({
       'Cross-Origin-Opener-Policy': 'same-origin-allow-popups'
     }
   },
+  preview: {
+    port: 3000,
+    host: true,
+    allowedHosts: true,
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups'
+    }
+  },
   build: {
     chunkSizeWarningLimit: 1600
   }
