@@ -27,14 +27,25 @@ MIN_GROUP_ROWS  = 5    # Groups smaller than this are dropped
 
 
 def load_dataframe(content: bytes, filename: str) -> pd.DataFrame:
-    """Load CSV or Excel file into DataFrame."""
-    if filename.endswith('.csv'):
-        df = pd.read_csv(io.BytesIO(content))
-    elif filename.endswith(('.xlsx', '.xls')):
-        df = pd.read_excel(io.BytesIO(content))
+    """Load CSV or Excel file into DataFrame with multi-encoding fallback."""
+    filename_lower = filename.lower()
+    if filename_lower.endswith('.csv'):
+        for enc in ['utf-8', 'latin1', 'iso-8859-1', 'cp1252', 'utf-16']:
+            try:
+                return pd.read_csv(io.BytesIO(content), encoding=enc)
+            except (UnicodeDecodeError, LookupError):
+                continue
+            except Exception:
+                break
+        return pd.read_csv(io.BytesIO(content), encoding_errors='ignore')
+    elif filename_lower.endswith(('.xlsx', '.xls')):
+        return pd.read_excel(io.BytesIO(content))
     else:
-        raise ValueError("Unsupported file format. Please upload a CSV or Excel file.")
-    return df
+        # Fallback attempt to read as CSV
+        try:
+            return pd.read_csv(io.BytesIO(content), encoding_errors='ignore')
+        except Exception:
+            raise ValueError("Unsupported file format. Please upload a CSV or Excel file.")
 
 
 def detect_sensitive_columns(df: pd.DataFrame) -> List[str]:

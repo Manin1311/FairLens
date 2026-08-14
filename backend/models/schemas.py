@@ -98,3 +98,27 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     answer: str
+
+
+# ─── FairLens 2.0 Schemas ───────────────────────────────────────────────────
+class MitigateRequest(BaseModel):
+    sensitive_column: str
+    target_column: Optional[str] = None
+    fairness_goal: Optional[str] = "equalized_odds"
+    strength: Optional[float] = 0.8
+
+class IntersectionalRequest(BaseModel):
+    primary_column: str
+    secondary_column: str
+    target_column: Optional[str] = None
+
+class CounterfactualRequest(BaseModel):
+    sample_index: int = 0
+    sensitive_column: str
+    target_column: Optional[str] = None
+
+class LlmAuditRequest(BaseModel):
+    text: str
+    system_role: Optional[str] = "General Assistant"
+    target_demographics: Optional[List[str]] = None
+

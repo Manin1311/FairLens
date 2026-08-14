@@ -37,7 +37,7 @@ services:
       - key: ALLOWED_ORIGINS
         sync: false   # Set to: https://fairlens-frontend.onrender.com
 
-  # ─── Frontend: Next.js (Node.js) ─────────────────────────────────────────
+  # ─── Frontend: React + Vite (Node.js) ──────────────────────────────────────
   - type: web
     name: fairlens-frontend
     runtime: node
@@ -45,9 +45,10 @@ services:
     plan: free
     rootDir: frontend
     buildCommand: npm install && npm run build
-    startCommand: npm start
+    startCommand: npm run preview -- --port $PORT --host 0.0.0.0
     envVars:
-      - key: NEXT_PUBLIC_API_URL
+      - key: VITE_API_URL
         sync: false   # Set to: https://fairlens-backend.onrender.com
       - key: PORT
         value: "3000"
+

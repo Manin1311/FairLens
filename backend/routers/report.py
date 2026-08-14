@@ -1,9 +1,13 @@
+import io
 import json
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from models.database import get_db, Audit, User
-from routers.auth import get_current_user
+from routers.auth import SECRET_KEY, ALGORITHM
+from jose import jwt, JWTError
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
@@ -13,8 +17,6 @@ from reportlab.platypus import (
     Table, TableStyle, HRFlowable
 )
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
-import io
-from datetime import datetime
 
 router = APIRouter()
 
@@ -24,24 +26,42 @@ RISK_COLORS = {
     "LOW":    colors.HexColor("#22c55e"),
 }
 
-
 @router.get("/{audit_id}/pdf")
 def download_pdf_report(
     audit_id: int,
-    current_user: User = Depends(get_current_user),
+    token: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db)
 ):
-    audit = db.query(Audit).filter(
-        Audit.id == audit_id, Audit.user_id == current_user.id
-    ).first()
+    user = None
+    auth_token = token
+    if not auth_token and authorization and authorization.startswith("Bearer "):
+        auth_token = authorization.split(" ")[1]
+
+    if auth_token:
+        try:
+            payload = jwt.decode(auth_token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+            if user_id:
+                user = db.query(User).filter(User.id == int(user_id)).first()
+        except Exception:
+            pass
+
+    audit = db.query(Audit).filter(Audit.id == audit_id).first()
     if not audit or not audit.result:
         raise HTTPException(status_code=404, detail="Audit not found")
+
+    if not audit.is_public and (not user or (audit.user_id and audit.user_id != user.id)):
+        if not user:
+            raise HTTPException(status_code=401, detail="Not authenticated. Please log in or provide a valid token.")
+        raise HTTPException(status_code=403, detail="Not authorized to access this audit report")
 
     result = audit.result
     analysis = json.loads(result.raw_analysis)
     fixes = json.loads(result.fix_suggestions) if result.fix_suggestions else []
 
-    pdf_bytes = _build_pdf(audit, analysis, result.gemini_explanation, result.report_summary, fixes, current_user)
+    pdf_user = user or getattr(audit, 'owner', None)
+    pdf_bytes = _build_pdf(audit, analysis, result.gemini_explanation, result.report_summary, fixes, pdf_user)
 
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
@@ -50,7 +70,7 @@ def download_pdf_report(
     )
 
 
-def _build_pdf(audit, analysis, explanation, summary, fixes, user) -> bytes:
+def _build_pdf(audit, analysis, explanation, summary, fixes, user=None) -> bytes:
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4,
                             leftMargin=2*cm, rightMargin=2*cm,
@@ -96,9 +116,10 @@ def _build_pdf(audit, analysis, explanation, summary, fixes, user) -> bytes:
     story.append(Spacer(1, 0.4*cm))
 
     # ── Meta Info ──────────────────────────────────────────────────────────────
+    org_name = getattr(user, 'organization', '') or "FairLens AI Governance Labs"
     meta_data = [
         ["Audit Name:",   audit.name],
-        ["Organization:", user.organization or "—"],
+        ["Organization:", org_name],
         ["Dataset:",      audit.dataset_name],
         ["Total Rows:",   str(analysis.get("total_rows", 0))],
         ["Date:",         datetime.utcnow().strftime("%B %d, %Y")],
@@ -176,7 +197,52 @@ def _build_pdf(audit, analysis, explanation, summary, fixes, user) -> bytes:
 
     # ── AI Explanation ─────────────────────────────────────────────────────────
     story.append(Paragraph("AI Analysis — Powered by Google Gemini", h2_style))
-    if explanation:
+    exp_dict = None
+    if isinstance(explanation, dict):
+        exp_dict = explanation
+    elif isinstance(explanation, str):
+        try:
+            exp_dict = json.loads(explanation)
+        except Exception:
+            exp_dict = None
+
+    if exp_dict and isinstance(exp_dict, dict):
+        tldr = exp_dict.get("tldr", "")
+        if tldr:
+            verdict_box = Table(
+                [[Paragraph(f"<b>Executive Verdict:</b> {tldr}", body_style)]],
+                colWidths=[17*cm]
+            )
+            verdict_box.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f1f5f9")),
+                ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#cbd5e1")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ]))
+            story.append(verdict_box)
+            story.append(Spacer(1, 0.2*cm))
+
+        findings = exp_dict.get("key_findings", [])
+        if findings and isinstance(findings, list):
+            story.append(Paragraph("<b>Key Findings:</b>", ParagraphStyle("KFHeader", parent=body_style, fontName="Helvetica-Bold", spaceBefore=4)))
+            for f in findings:
+                story.append(Paragraph(f"• {f}", ParagraphStyle("KItem", parent=body_style, leftIndent=12)))
+            story.append(Spacer(1, 0.2*cm))
+
+        who = exp_dict.get("who_is_affected")
+        if who:
+            story.append(Paragraph(f"<b>Disadvantaged Groups:</b> {who}", body_style))
+
+        consequence = exp_dict.get("real_world_consequence")
+        if consequence:
+            story.append(Paragraph(f"<b>Real-World Consequence:</b> {consequence}", body_style))
+
+        urgency = exp_dict.get("urgency")
+        if urgency:
+            story.append(Paragraph(f"<b>Action Required:</b> {urgency}", body_style))
+    elif explanation and isinstance(explanation, str):
         for para in explanation.split("\n\n"):
             if para.strip():
                 story.append(Paragraph(para.strip(), body_style))

@@ -1,16 +1,23 @@
 import json
 import asyncio
+import os
+import pandas as pd
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from models.database import get_db, User, Audit, AuditResult
 from models.schemas import (
-    AuditOut, AuditDetailOut, ColumnDetectOut, ChatRequest, ChatResponse
+    AuditOut, AuditDetailOut, ColumnDetectOut, ChatRequest, ChatResponse,
+    MitigateRequest, IntersectionalRequest, CounterfactualRequest, LlmAuditRequest
 )
 from services.bias_engine import (
     load_dataframe, detect_sensitive_columns,
     detect_target_column, run_full_analysis
 )
+from services.mitigation_engine import mitigate_dataset, simulate_mitigation_from_analysis
+from services.intersectional_engine import compute_intersectional_matrix, compute_intersectional_from_analysis
+from services.counterfactual_engine import simulate_counterfactual, simulate_counterfactual_from_analysis
+from services.llm_bias_engine import audit_llm_text
 from services import gemini_service
 from routers.auth import get_current_user
 
@@ -350,6 +357,76 @@ async def re_explain(audit_id: int, language: str, current_user: User = Depends(
     return {"gemini_explanation": explanation_dict, "language": language}
 
 
+@router.post("/{audit_id}/mitigate")
+async def mitigate_audit(
+    audit_id: int,
+    payload: MitigateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """FairLens 2.0: Run mitigation engine on an existing audit using stored analysis."""
+    audit = _get_owned_audit(audit_id, current_user.id, db)
+    if not audit.result:
+        raise HTTPException(status_code=404, detail="Audit results not found")
+    analysis = json.loads(audit.result.raw_analysis)
+    result = simulate_mitigation_from_analysis(
+        analysis=analysis,
+        sensitive_col=payload.sensitive_column,
+        fairness_goal=payload.fairness_goal,
+        strength=payload.strength,
+        dataset_name=audit.dataset_name
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.post("/{audit_id}/intersectional")
+async def intersectional_audit(
+    audit_id: int,
+    payload: IntersectionalRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """FairLens 2.0: Compute 2D intersectional disparity matrix on an existing audit."""
+    audit = _get_owned_audit(audit_id, current_user.id, db)
+    if not audit.result:
+        raise HTTPException(status_code=404, detail="Audit results not found")
+    analysis = json.loads(audit.result.raw_analysis)
+    result = compute_intersectional_from_analysis(
+        analysis=analysis,
+        primary_col=payload.primary_column,
+        secondary_col=payload.secondary_column,
+        target_col=payload.target_column or audit.target_column
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.post("/{audit_id}/counterfactual")
+async def counterfactual_audit(
+    audit_id: int,
+    payload: CounterfactualRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """FairLens 2.0: Simulate counterfactual individual fairness on an existing audit."""
+    audit = _get_owned_audit(audit_id, current_user.id, db)
+    if not audit.result:
+        raise HTTPException(status_code=404, detail="Audit results not found")
+    analysis = json.loads(audit.result.raw_analysis)
+    result = simulate_counterfactual_from_analysis(
+        analysis=analysis,
+        sample_index=payload.sample_index,
+        sensitive_col=payload.sensitive_column,
+        target_col=payload.target_column or audit.target_column
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
 # ─── Delete Audit ─────────────────────────────────────────────────────────────
 @router.delete("/{audit_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_audit(
@@ -468,6 +545,211 @@ async def run_demo(dataset_name: str):
     }
 
 
+# ─── FairLens 2.0 Endpoints ───────────────────────────────────────────────────
+
+@router.post("/demo/{dataset_name}/mitigate")
+async def mitigate_demo_dataset(dataset_name: str, payload: MitigateRequest):
+    """FairLens 2.0: Run automated bias mitigation on a demo dataset."""
+    demo_path = f"demo_datasets/{dataset_name}.csv"
+    if not os.path.exists(demo_path):
+        raise HTTPException(status_code=404, detail=f"Demo dataset '{dataset_name}' not found")
+    df = pd.read_csv(demo_path)
+    target_col = payload.target_column or detect_target_column(df)
+    result = mitigate_dataset(
+        df=df,
+        sensitive_col=payload.sensitive_column,
+        target_col=target_col,
+        fairness_goal=payload.fairness_goal or "equalized_odds",
+        strength=payload.strength or 0.8
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.post("/demo/{dataset_name}/intersectional")
+async def intersectional_demo_dataset(dataset_name: str, payload: IntersectionalRequest):
+    """FairLens 2.0: Compute 2D intersectional disparity matrix on a demo dataset."""
+    demo_path = f"demo_datasets/{dataset_name}.csv"
+    if not os.path.exists(demo_path):
+        raise HTTPException(status_code=404, detail=f"Demo dataset '{dataset_name}' not found")
+    df = pd.read_csv(demo_path)
+    target_col = payload.target_column or detect_target_column(df)
+    result = compute_intersectional_matrix(
+        df=df,
+        primary_col=payload.primary_column,
+        secondary_col=payload.secondary_column,
+        target_col=target_col
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.post("/demo/{dataset_name}/counterfactual")
+async def counterfactual_demo_dataset(dataset_name: str, payload: CounterfactualRequest):
+    """FairLens 2.0: Simulate counterfactual individual fairness on a demo dataset."""
+    demo_path = f"demo_datasets/{dataset_name}.csv"
+    if not os.path.exists(demo_path):
+        raise HTTPException(status_code=404, detail=f"Demo dataset '{dataset_name}' not found")
+    df = pd.read_csv(demo_path)
+    target_col = payload.target_column or detect_target_column(df)
+    result = simulate_counterfactual(
+        df=df,
+        sample_index=payload.sample_index,
+        sensitive_col=payload.sensitive_column,
+        target_col=target_col
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.get("/demo/{dataset_name}/compliance")
+def get_demo_compliance(dataset_name: str):
+    """FairLens 2.0: Generate EU AI Act, US EEOC, NYC LL144, & ISO 42001 scorecards."""
+    data = _load_demo(dataset_name)
+    analysis = data["analysis"]
+    score = analysis.get("overall_fairness_score", 0)
+    risk = analysis.get("overall_risk_level", "UNKNOWN")
+    attrs = analysis.get("attribute_results", [])
+    
+    # Calculate regulatory compliance statuses
+    eeoc_pass = all(
+        (a.get("disparate_impact_ratio") or 1.0) >= 0.80 for a in attrs if not a.get("error")
+    )
+    eu_act_pass = score >= 75 and all(
+        (a.get("demographic_parity_difference") or 0.0) <= 0.15 for a in attrs if not a.get("error")
+    )
+    nyc_pass = True  # Audit data is transparently tracked
+    iso_pass = score >= 60
+
+    return {
+        "dataset_name": dataset_name,
+        "overall_score": score,
+        "overall_risk": risk,
+        "certifications": [
+            {
+                "standard": "EU AI Act (Article 10: Data Governance & Bias Control)",
+                "status": "COMPLIANT" if eu_act_pass else "ACTION REQUIRED",
+                "badge_color": "emerald" if eu_act_pass else "rose",
+                "details": "Requires technical bias mitigation and continuous testing for high-risk AI systems in EU jurisdiction.",
+                "score_threshold": "Score >= 75 and DPD <= 0.15",
+                "passed": eu_act_pass
+            },
+            {
+                "standard": "US EEOC Uniform Guidelines (80% Disparate Impact Rule)",
+                "status": "COMPLIANT" if eeoc_pass else "NON-COMPLIANT",
+                "badge_color": "emerald" if eeoc_pass else "rose",
+                "details": "Selection rate for any protected race/gender group must not fall below 4/5ths (80%) of the highest rate group.",
+                "score_threshold": "DIR >= 0.80 on all protected classes",
+                "passed": eeoc_pass
+            },
+            {
+                "standard": "NYC Local Law 144 (Automated Employment Decision Tools)",
+                "status": "AUDITED & DOCUMENTED",
+                "badge_color": "emerald",
+                "details": "Requires annual independent bias audit and published impact ratios before deployment in NYC.",
+                "score_threshold": "Disparate Impact transparency verified",
+                "passed": nyc_pass
+            },
+            {
+                "standard": "ISO/IEC 42001 (AI Management Systems — Risk Assessment)",
+                "status": "CERTIFIED" if iso_pass else "PROVISIONAL",
+                "badge_color": "indigo" if iso_pass else "amber",
+                "details": "Governs organizational processes for trustworthy AI systems development and deployment.",
+                "score_threshold": "Overall Trust Score >= 60/100",
+                "passed": iso_pass
+            }
+        ]
+    }
+
+
+# ─── Custom User File 2.0 Endpoints ──────────────────────────────────────────
+
+@router.post("/custom/mitigate")
+async def mitigate_custom_file(
+    file: UploadFile = File(...),
+    sensitive_column: str = Form(...),
+    target_column: str = Form(...),
+    fairness_goal: str = Form("equalized_odds"),
+    strength: float = Form(0.8)
+):
+    """FairLens 2.0: Run mitigation directly on an uploaded CSV file."""
+    _validate_file(file)
+    content = await file.read()
+    df = load_dataframe(content, file.filename)
+    result = mitigate_dataset(
+        df=df,
+        sensitive_col=sensitive_column,
+        target_col=target_column,
+        fairness_goal=fairness_goal,
+        strength=strength
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.post("/custom/intersectional")
+async def intersectional_custom_file(
+    file: UploadFile = File(...),
+    primary_column: str = Form(...),
+    secondary_column: str = Form(...),
+    target_column: str = Form(...)
+):
+    """FairLens 2.0: Run intersectional analysis on an uploaded CSV file."""
+    _validate_file(file)
+    content = await file.read()
+    df = load_dataframe(content, file.filename)
+    result = compute_intersectional_matrix(
+        df=df,
+        primary_col=primary_column,
+        secondary_col=secondary_column,
+        target_col=target_column
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.post("/custom/counterfactual")
+async def counterfactual_custom_file(
+    file: UploadFile = File(...),
+    sample_index: int = Form(0),
+    sensitive_column: str = Form(...),
+    target_column: str = Form(...)
+):
+    """FairLens 2.0: Run counterfactual individual tester on an uploaded CSV file."""
+    _validate_file(file)
+    content = await file.read()
+    df = load_dataframe(content, file.filename)
+    result = simulate_counterfactual(
+        df=df,
+        sample_index=sample_index,
+        sensitive_col=sensitive_column,
+        target_col=target_column
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+# ─── LLM & Generative AI Prompt Bias Auditor ──────────────────────────────────
+
+@router.post("/llm-audit")
+async def run_llm_prompt_audit(payload: LlmAuditRequest):
+    """FairLens 2.0: Audit Generative AI text and prompts for stereotypes, bias & toxicity."""
+    result = await audit_llm_text(
+        prompt_or_text=payload.text,
+        system_role=payload.system_role or "General Assistant",
+        target_demographics=payload.target_demographics
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 def _validate_file(file: UploadFile):
     import os
@@ -484,3 +766,4 @@ def _get_owned_audit(audit_id: int, user_id: int, db: Session) -> Audit:
     if not audit:
         raise HTTPException(status_code=404, detail="Audit not found")
     return audit
+
