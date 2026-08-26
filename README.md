@@ -6,8 +6,8 @@
 </p>
 
 <p align="center">
-  <a href="https://fairlens-unbiasedai.onrender.com"><strong>🌐 Live Demo</strong></a> ·
-  <a href="https://fairlens-unbiasedai.onrender.com/demo"><strong>⚡ Try Without Login</strong></a> 
+  <a href="https://fairlens-unbiasedai-gw5z.onrender.com"><strong>🌐 Live Demo</strong></a> ·
+  <a href="https://fairlens-unbiasedai-gw5z.onrender.com/demo"><strong>⚡ Try Without Login</strong></a> 
 </p>
 
 ---

@@ -56,7 +56,8 @@ allowed_origins = [
     "http://127.0.0.1:3000",
     "http://127.0.0.1:5173",
     "http://localhost",
-    "https://fairlens-unbiasedai.onrender.com"
+    "https://fairlens-unbiasedai.onrender.com",
+    "https://fairlens-unbiasedai-gw5z.onrender.com"
 ]
 env_origins = os.getenv("ALLOWED_ORIGINS", "")
 if env_origins:
