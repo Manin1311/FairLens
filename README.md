@@ -5,10 +5,10 @@
   Detect, measure, and fix hidden bias in AI systems — powered by Google Gemini
 </p>
 
-<p align="center">
+<!-- <p align="center">
   <a href="https://fairlens-unbiasedai-gw5z.onrender.com"><strong>🌐 Live Demo</strong></a> ·
   <a href="https://fairlens-unbiasedai-gw5z.onrender.com/demo"><strong>⚡ Try Without Login</strong></a> 
-</p>
+</p> -->
 
 ---
 
